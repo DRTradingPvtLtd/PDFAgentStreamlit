@@ -23,6 +23,8 @@ def init_session_state():
         st.session_state.summary = None
     if 'recommendations' not in st.session_state:
         st.session_state.recommendations = None
+    if 'recommendation_error' not in st.session_state:
+        st.session_state.recommendation_error = None
 
 async def process_pdf(coordinator, file):
     """Process PDF file using the coordinator."""
@@ -39,10 +41,16 @@ async def generate_summary(coordinator, text, summary_type):
     result = await coordinator.generate_summary(text, summary_type)
     if result["success"]:
         summary = result["summary"]
+        st.session_state.summary = summary
+        
         # Get product recommendations based on summary
-        recommendations = await coordinator.get_product_recommendations(summary)
-        if recommendations["success"]:
-            st.session_state.recommendations = recommendations["recommendations"]
+        with st.spinner("Generating product recommendations..."):
+            recommendations = await coordinator.get_product_recommendations(summary)
+            if recommendations["success"]:
+                st.session_state.recommendations = recommendations["recommendations"]
+                st.session_state.recommendation_error = None
+            else:
+                st.session_state.recommendation_error = recommendations.get("error", "Unknown error")
         return summary
     else:
         st.error(f"Error generating summary: {result.get('error', 'Unknown error')}")
@@ -59,45 +67,69 @@ async def get_answer(coordinator, context, question):
 
 def display_recommendations(recommendations):
     """Display product recommendations with filtering and sorting options."""
-    st.subheader("🛍️ Recommended Products")
+    if not recommendations:
+        st.warning("No product recommendations available.")
+        return
+
+    st.subheader("🛍️ Product Recommendations")
     
     # Filtering options
-    st.markdown("### Filter Options")
-    col1, col2 = st.columns(2)
-    with col1:
-        min_score = st.slider("Minimum Relevance Score", 0, 100, 50)
-    with col2:
-        categories = list(set(prod["category"] for prod in recommendations))
-        selected_category = st.selectbox("Filter by Category", ["All"] + categories)
+    with st.expander("Filter and Sort Options", expanded=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            min_score = st.slider("Minimum Relevance Score", 0, 100, 50)
+        with col2:
+            categories = list(set(prod.get("category", "Unknown") for prod in recommendations))
+            selected_category = st.selectbox("Filter by Category", ["All"] + categories)
+        
+        sort_options = {
+            "Relevance Score (High to Low)": lambda x: (-x.get("relevance_score", 0)),
+            "Base Type Compatibility": lambda x: (-x.get("technical_match_details", {}).get("base_type_compatibility", 0)),
+            "Parameter Alignment": lambda x: (-x.get("technical_match_details", {}).get("parameter_alignment", 0)),
+            "Application Suitability": lambda x: (-x.get("technical_match_details", {}).get("application_suitability", 0))
+        }
+        sort_by = st.selectbox("Sort by", list(sort_options.keys()))
     
-    # Sorting options
-    sort_by = st.selectbox("Sort by", ["Relevance Score", "Price (Low to High)", "Price (High to Low)"])
-    
-    # Filter and sort recommendations
+    # Filter recommendations
     filtered_recommendations = [
         r for r in recommendations 
-        if r["relevance_score"] >= min_score 
-        and (selected_category == "All" or r["category"] == selected_category)
+        if r.get("relevance_score", 0) >= min_score 
+        and (selected_category == "All" or r.get("category") == selected_category)
     ]
     
-    if sort_by == "Price (Low to High)":
-        filtered_recommendations.sort(key=lambda x: x["price"])
-    elif sort_by == "Price (High to Low)":
-        filtered_recommendations.sort(key=lambda x: x["price"], reverse=True)
-    else:  # Default: sort by relevance score
-        filtered_recommendations.sort(key=lambda x: x["relevance_score"], reverse=True)
+    # Sort recommendations
+    filtered_recommendations.sort(key=sort_options[sort_by])
     
     # Display recommendations
     if filtered_recommendations:
-        for product in filtered_recommendations:
-            with st.expander(f"{product['name']} (Score: {product['relevance_score']})"):
-                st.markdown(f"**Category:** {product['category'].title()}")
-                st.markdown(f"**Price:** ${product['price']:.2f}")
-                st.markdown(f"**Description:** {product['description']}")
-                st.markdown("**Features:**")
-                for feature in product['features']:
-                    st.markdown(f"- {feature}")
-                st.markdown(f"**Match Explanation:** {product['match_explanation']}")
+        for idx, product in enumerate(filtered_recommendations, 1):
+            with st.expander(
+                f"#{idx} {product.get('name', 'Unnamed Product')} "
+                f"(Score: {product.get('relevance_score', 0)})",
+                expanded=idx == 1
+            ):
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    st.markdown(f"**Description:** {product.get('description', 'No description available')}")
+                    st.markdown("**Technical Parameters:**")
+                    tech_params = product.get("technical_parameters", {})
+                    for param, value in tech_params.items():
+                        st.markdown(f"- {param.title()}: {value}")
+                    
+                    if product.get("features"):
+                        st.markdown("**Features:**")
+                        for feature in product["features"]:
+                            st.markdown(f"- {feature}")
+                
+                with col2:
+                    st.markdown("**Match Details:**")
+                    tech_match = product.get("technical_match_details", {})
+                    for aspect, score in tech_match.items():
+                        st.progress(score/100, text=f"{aspect.replace('_', ' ').title()}: {score}%")
+            
+            if idx < len(filtered_recommendations):
+                st.divider()
     else:
         st.info("No products match the current filters.")
 
@@ -135,7 +167,7 @@ def main():
             )
             
             if st.button("Generate Summary"):
-                with st.spinner("Generating summary and recommendations..."):
+                with st.spinner("Generating summary..."):
                     summary = asyncio.run(generate_summary(
                         st.session_state.coordinator,
                         st.session_state.pdf_text,
@@ -149,8 +181,10 @@ def main():
                 st.markdown(st.session_state.summary)
                 st.divider()
                 
-                # Display product recommendations if available
-                if st.session_state.recommendations:
+                # Display recommendations or error
+                if st.session_state.recommendation_error:
+                    st.error(f"Error generating recommendations: {st.session_state.recommendation_error}")
+                elif st.session_state.recommendations:
                     display_recommendations(st.session_state.recommendations)
                 st.divider()
             
