@@ -90,6 +90,32 @@ def main():
                         )
                         st.markdown("### Answer:")
                         st.markdown(answer)
+
+            st.divider()
+
+            # Sales Pitch Generator Section
+            st.subheader("🎯 Generate Sales Pitch")
+            st.markdown("""
+            Generate a customized sales pitch based on the document content and specific customer requirements.
+            """)
+            
+            customer_requirements = st.text_area(
+                "Enter customer requirements and pain points:",
+                height=100,
+                placeholder="Example: Looking for a scalable solution that improves efficiency and reduces operational costs..."
+            )
+            
+            if st.button("Generate Sales Pitch"):
+                if not customer_requirements:
+                    st.warning("Please enter customer requirements to generate a pitch.")
+                else:
+                    with st.spinner("Generating sales pitch..."):
+                        pitch = st.session_state.qa_engine.generate_product_pitch(
+                            st.session_state.pdf_text,
+                            customer_requirements
+                        )
+                        st.markdown("### Generated Sales Pitch:")
+                        st.markdown(pitch)
             
             st.markdown('</div>', unsafe_allow_html=True)
 

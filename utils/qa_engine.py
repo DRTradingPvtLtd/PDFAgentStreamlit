@@ -75,3 +75,35 @@ class QAEngine:
         except Exception as e:
             st.error(f"Error generating summary: {str(e)}")
             return "Sorry, I encountered an error while generating the summary."
+
+    def generate_product_pitch(self, context: str, customer_requirements: str) -> str:
+        try:
+            prompt = f"""
+            Product Context: {context}
+            
+            Customer Requirements: {customer_requirements}
+            
+            Please analyze the product details and create a persuasive sales pitch that:
+            1. Highlights key product features that align with the customer requirements
+            2. Addresses specific customer needs and pain points
+            3. Emphasizes unique selling propositions
+            4. Includes a clear call to action
+            
+            Format the pitch in a professional and engaging way.
+            """
+
+            response = self.client.chat.completions.create(
+                model=self.deployment_name,
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }],
+                temperature=0.7,
+                max_tokens=1000)
+
+            content = response.choices[0].message.content
+            return content if content else "Sorry, I couldn't generate a sales pitch."
+
+        except Exception as e:
+            st.error(f"Error generating sales pitch: {str(e)}")
+            return "Sorry, I encountered an error while generating the sales pitch."
