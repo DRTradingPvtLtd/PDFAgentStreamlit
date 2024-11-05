@@ -1,0 +1,11 @@
+[project]
+name = "repl-nix-pdfagentstreamlit"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=1.54.0",
+    "phidata>=2.5.30",
+    "pypdf2>=3.0.1",
+    "streamlit>=1.39.0",
+]
