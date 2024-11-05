@@ -4,7 +4,6 @@ version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.11"
 dependencies = [
-    "asyncio>=3.4.3",
     "openai>=1.0.0",
     "phidata>=2.5.30",
     "pypdf2>=3.0.1",
