@@ -1,7 +1,6 @@
 import streamlit as st
-from utils.pdf_processor import PDFProcessor
-from utils.qa_engine import QAEngine
-import os
+import asyncio
+from utils.agents.coordinator import AgentCoordinator
 
 # Page configuration
 st.set_page_config(
@@ -14,6 +13,43 @@ st.set_page_config(
 with open('assets/style.css') as f:
     st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
 
+def init_session_state():
+    """Initialize session state variables."""
+    if 'coordinator' not in st.session_state:
+        st.session_state.coordinator = AgentCoordinator()
+    if 'pdf_text' not in st.session_state:
+        st.session_state.pdf_text = None
+    if 'summary' not in st.session_state:
+        st.session_state.summary = None
+
+async def process_pdf(coordinator, file):
+    """Process PDF file using the coordinator."""
+    result = await coordinator.process_pdf(file)
+    if result["success"]:
+        st.session_state.pdf_text = result["text"]
+        return True
+    else:
+        st.error(f"Error processing PDF: {result.get('error', 'Unknown error')}")
+        return False
+
+async def generate_summary(coordinator, text, summary_type):
+    """Generate summary using the coordinator."""
+    result = await coordinator.generate_summary(text, summary_type)
+    if result["success"]:
+        return result["summary"]
+    else:
+        st.error(f"Error generating summary: {result.get('error', 'Unknown error')}")
+        return None
+
+async def get_answer(coordinator, context, question):
+    """Get answer using the coordinator."""
+    result = await coordinator.get_answer(context, question)
+    if result["success"]:
+        return result["answer"]
+    else:
+        st.error(f"Error generating answer: {result.get('error', 'Unknown error')}")
+        return None
+
 def main():
     st.title("📚 PDF Q&A Assistant")
     st.markdown("""
@@ -22,12 +58,7 @@ def main():
     """)
 
     # Initialize session state
-    if 'pdf_text' not in st.session_state:
-        st.session_state.pdf_text = None
-    if 'qa_engine' not in st.session_state:
-        st.session_state.qa_engine = QAEngine()
-    if 'summary' not in st.session_state:
-        st.session_state.summary = None
+    init_session_state()
 
     # File upload section
     with st.container():
@@ -35,15 +66,8 @@ def main():
         uploaded_file = st.file_uploader("Upload your PDF file", type=['pdf'])
         
         if uploaded_file is not None:
-            if PDFProcessor.validate_pdf(uploaded_file):
-                with st.spinner("Processing PDF..."):
-                    st.session_state.pdf_text = PDFProcessor.extract_text(uploaded_file)
-                    if st.session_state.pdf_text:
-                        st.success("PDF processed successfully!")
-                    else:
-                        st.error("Could not extract text from the PDF.")
-            else:
-                st.error("Please upload a valid PDF file.")
+            if asyncio.run(process_pdf(st.session_state.coordinator, uploaded_file)):
+                st.success("PDF processed successfully!")
         st.markdown('</div>', unsafe_allow_html=True)
 
     # Content Analysis section
@@ -61,10 +85,13 @@ def main():
             
             if st.button("Generate Summary"):
                 with st.spinner("Generating summary..."):
-                    st.session_state.summary = st.session_state.qa_engine.generate_summary(
+                    summary = asyncio.run(generate_summary(
+                        st.session_state.coordinator,
                         st.session_state.pdf_text,
                         summary_type
-                    )
+                    ))
+                    if summary:
+                        st.session_state.summary = summary
             
             if st.session_state.summary:
                 st.markdown("### Summary:")
@@ -84,12 +111,14 @@ def main():
                     st.warning("Please enter a valid question.")
                 else:
                     with st.spinner("Generating answer..."):
-                        answer = st.session_state.qa_engine.get_answer(
+                        answer = asyncio.run(get_answer(
+                            st.session_state.coordinator,
                             st.session_state.pdf_text,
                             user_question
-                        )
-                        st.markdown("### Answer:")
-                        st.markdown(answer)
+                        ))
+                        if answer:
+                            st.markdown("### Answer:")
+                            st.markdown(answer)
             
             st.markdown('</div>', unsafe_allow_html=True)
 
