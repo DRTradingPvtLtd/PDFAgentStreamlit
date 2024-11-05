@@ -19,6 +19,41 @@ class QAEngine:
         self.deployment_name = os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4")
         self.product_matcher = ProductMatchingEngine()
 
+    def extract_requirements(self, text: str) -> dict:
+        """Extract product requirements from the document text"""
+        try:
+            prompt = f"""
+            Analyze the following document and extract chocolate product requirements.
+            Return the requirements in JSON format with these fields:
+            - base_type: preferred chocolate base type (e.g., dark, milk, white, ruby)
+            - product_type: type of product needed (e.g., standard, premium, sugar-free)
+            - technical_specs: dictionary of technical specifications mentioned
+            - region: target region if mentioned (EMEA, NAM, APAC)
+            - special_requirements: any special requirements or restrictions
+
+            Document text:
+            {text}
+
+            Only include fields that are explicitly mentioned or strongly implied in the text.
+            """
+
+            response = self.client.chat.completions.create(
+                model=self.deployment_name,
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }],
+                temperature=0.0,
+                max_tokens=500)
+
+            content = response.choices[0].message.content
+            import json
+            return json.loads(content)
+
+        except Exception as e:
+            st.error(f"Error extracting requirements: {str(e)}")
+            return {}
+
     def get_answer(self, context: str, question: str, user_preferences: dict = None) -> str:
         try:
             preferences_context = ""
@@ -30,18 +65,6 @@ class QAEngine:
                 - Dietary restrictions: {user_preferences.get('dietary_restrictions', 'N/A')}
                 - Cocoa percentage preference: {user_preferences.get('cocoa_percentage', 'N/A')}
                 """
-
-            # Extract product requirements from the question
-            requirements = self._extract_product_requirements(question)
-            
-            # If the question is about product recommendations, use the product matcher
-            if self._is_product_query(question):
-                matches = self.product_matcher.find_matching_products(
-                    requirements, user_preferences)
-                
-                if matches:
-                    product_context = self._format_product_matches(matches)
-                    context = f"{context}\n\nRelevant product matches:\n{product_context}"
 
             prompt = f"""
             Context: {context}
@@ -70,61 +93,6 @@ class QAEngine:
         except Exception as e:
             st.error(f"Error generating answer: {str(e)}")
             return "Sorry, I encountered an error while processing your question."
-
-    def _extract_product_requirements(self, question: str) -> dict:
-        """Extract product requirements from the question"""
-        try:
-            prompt = f"""
-            Extract product requirements from the following question:
-            Question: {question}
-            
-            Return the requirements in JSON format with these possible fields:
-            - base_type (e.g., dark, milk, white, ruby)
-            - product_type (e.g., standard, premium, sugar-free)
-            - technical_params (dictionary of technical parameters)
-            - region (if specified)
-            
-            Only include fields that are explicitly mentioned or implied in the question.
-            """
-
-            response = self.client.chat.completions.create(
-                model=self.deployment_name,
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }],
-                temperature=0.0,
-                max_tokens=200)
-
-            content = response.choices[0].message.content
-            import json
-            return json.loads(content)
-
-        except Exception as e:
-            st.error(f"Error extracting requirements: {str(e)}")
-            return {}
-
-    def _is_product_query(self, question: str) -> bool:
-        """Determine if the question is asking for product recommendations"""
-        product_keywords = [
-            'recommend', 'suggest', 'find', 'looking for', 'available',
-            'product', 'chocolate', 'material', 'type', 'similar'
-        ]
-        return any(keyword in question.lower() for keyword in product_keywords)
-
-    def _format_product_matches(self, matches: list) -> str:
-        """Format product matches into a readable string"""
-        result = []
-        for match in matches:
-            result.append(f"""
-            Product: {match['description']}
-            Material Code: {match['material_code']}
-            Match Score: {match['match_score']:.2f}
-            Base Type: {match['details']['base_type']}
-            Product Type: {match['details']['product_type']}
-            Region: {match['details']['region']}
-            """)
-        return "\n".join(result)
 
     def generate_summary(self, text: str, summary_type: str = "concise", focus_on_chocolate: bool = False) -> str:
         try:
@@ -196,7 +164,7 @@ class QAEngine:
             st.error(f"Error analyzing preferences: {str(e)}")
             return "Sorry, I encountered an error while analyzing preferences."
 
-    def generate_product_pitch(self, context: str, customer_requirements: str, user_preferences: dict = None) -> str:
+    def generate_product_pitch(self, context: str, requirements: dict, user_preferences: dict = None) -> str:
         try:
             preferences_context = ""
             if user_preferences:
@@ -208,18 +176,21 @@ class QAEngine:
                 - Cocoa percentage preference: {user_preferences.get('cocoa_percentage', 'N/A')}
                 """
 
+            requirements_str = "\n".join([f"- {k}: {v}" for k, v in requirements.items() if v])
+
             prompt = f"""
             Product Context: {context}
             
-            Customer Requirements: {customer_requirements}
+            Requirements:
+            {requirements_str}
             
             {preferences_context}
             
-            Please analyze the product details and create a persuasive sales pitch that:
-            1. Highlights key product features that align with the customer requirements and preferences
+            Please create a persuasive sales pitch that:
+            1. Highlights key product features that align with the extracted requirements
             2. Addresses specific customer needs and pain points
             3. Emphasizes unique selling propositions, especially regarding chocolate characteristics
-            4. Includes a clear call to action
+            4. Includes relevant technical specifications and quality indicators
             5. If applicable, mentions how the product aligns with dietary restrictions
             
             Format the pitch in a professional and engaging way.
