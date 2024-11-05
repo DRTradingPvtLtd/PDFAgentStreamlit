@@ -1,0 +1,379 @@
+# Data Description - Reference Data Files
+
+## 1. Ideal Set of Parameters (00 Ideal set of parameters.csv)
+
+### Description
+This file serves as a master template for gathering and organizing customer requirements and product specifications in the chocolate manufacturing process.
+
+### Schema
+- S# (Section Number)
+- Section (Main category)
+- Q# (Question Number) 
+- Questions to Answer
+- Parameters to detect
+- Additional Information on possibilities
+- Example_1
+- Value_1
+
+### Key Sections
+1. Customer Application Understanding
+   - Market segment identification
+   - Customer application details
+   - Product type determination
+2. Target Product Specifications
+   - Base type identification
+   - Production technique
+   - Viscosity requirements
+   - Yield stress specifications
+   - Fat percentage requirements
+3. Delivery Format Requirements
+   - Format specifications
+   - Customer geography
+4. Health/Legal Guidelines
+   - Nutritional requirements
+   - Legal compliance
+   - Dietary restrictions
+   - Allergen information
+
+### Usage
+Used to systematically capture and evaluate:
+- Market segment information
+- Customer application details
+- Product specifications
+- Technical requirements
+- Legal and health requirements
+
+## 2. Technical Parameters per Production Technique (01 Technical parameters per Production Technique.csv)
+
+### Description
+Contains detailed viscosity specifications for different chocolate production techniques across various segments.
+
+### Schema
+- Technique (Production method)
+- Segment (Product category)
+- Min Viscosity (Casson)
+- Max Viscosity (Casson)
+
+### Key Features
+- Covers both Chocolate and Compound products
+- Provides viscosity ranges for different production methods
+- Segments techniques by application type
+- Includes specialized processes:
+  - Moulding (solid bars, filled bars, shells, figures)
+  - Enrobing (thick, normal, thin layers)
+  - Panning (spraying, pouring)
+  - Extruding
+  - Ice cream applications
+  - Manual applications
+
+### Usage
+Used to determine appropriate viscosity ranges for:
+- Different production techniques
+- Specific product applications
+- Quality control parameters
+- Process optimization
+
+## 3. Customer Application (02 Customer Application.csv)
+
+### Description
+Comprehensive listing of all possible customer applications and end-use cases for chocolate products.
+
+### Schema
+Single column listing all possible customer applications
+
+### Categories Include
+- Bakery products
+  - Butter cakes
+  - Celebration cakes
+  - Laminated pastries
+- Confectionery items
+  - Tablets
+  - Pralines
+  - Countlines
+- Ice cream applications
+  - Ice cream bars
+  - Ice cream cones
+  - Ice cream sandwiches
+- Dessert applications
+  - Frozen desserts
+  - Spoonable desserts
+  - Yogurt applications
+- Specialty products
+  - Spreads
+  - Drinks
+  - Cereals
+
+### Usage
+Reference for:
+- Product application classification
+- End-use determination
+- Market segmentation
+- Application-specific requirements
+
+## 4. Product Type (03 Product Type.csv)
+
+### Description
+Comprehensive listing of different product types with their abbreviations and classifications.
+
+### Schema
+- Product_Type_Abb (Abbreviation)
+- Product_Type (Full name)
+- Chocolate (Flag)
+- Compound (Flag)
+- Sweets Specialities (Flag)
+- Cocoa (Flag)
+
+### Categories
+- Chocolate variants
+  - Sugar free
+  - Without added sugar
+  - Premium varieties
+- Compounds
+  - Lauric
+  - Non-lauric
+  - Mixed
+- Specialty products
+  - Fillings
+  - Nut-based products
+  - Cocoa products
+- Beverage products
+  - Vending mixes
+  - Cocoa drinks
+  - Coffee products
+
+### Usage
+Used for:
+- Product classification
+- Type identification
+- Category mapping
+- Production planning
+
+## 5. Base Type (04 Base Type.csv)
+
+### Description
+Defines different base types for chocolate and compound products with detailed categorization.
+
+### Schema
+- Base_Abb (Abbreviation)
+- Base (Description)
+- Chocolate (Flag)
+- Compounds (Flag)
+- Sweets Specialities (Flag)
+- Cocoa (Flag)
+
+### Key Categories
+- Dark chocolate bases
+- Milk chocolate bases
+- White chocolate bases
+- Ruby chocolate
+- Flavored bases
+  - Based on milk
+  - Based on white
+  - Based on dark
+- Nut-based variants
+  - Hazelnuts
+  - Almonds
+  - Other nuts
+- Specialized bases
+  - Colored
+  - Acidified
+  - High flavored
+
+### Usage
+Reference for:
+- Base product selection
+- Product formulation
+- Recipe development
+- Quality specifications
+
+## 6. Delivery Format/Moulding Type (05 Delivery Format or Moulding Type.csv)
+
+### Description
+Detailed catalog of various delivery formats and moulding types for chocolate products with application-specific information.
+
+### Schema
+- Moulding_Type_Abb (Abbreviation)
+- Moulding_Type (Description)
+- Bakery and Pastry (Flag)
+- Confectionary (Flag)
+- Dairy and Drink (Flag)
+- Ice cream and Desserts (Flag)
+- Comment (Additional information)
+
+### Key Features
+- Format categories:
+  - Liquid forms
+  - Solid forms
+  - Decorative pieces
+  - Industrial formats
+  - Specialty shapes
+- Application-specific formats
+- Detailed usage descriptions
+- Size specifications
+- Processing requirements
+
+### Usage
+Used to determine:
+- Product delivery format
+- Packaging specifications
+- Application-specific formats
+- Production requirements
+- Storage conditions
+- Handling instructions
+
+## 7. Nutrition Information (03 Nutrition.csv)
+
+### Description
+Contains detailed nutritional information for chocolate products, supporting regulatory compliance and product labeling requirements across different regions.
+
+### Schema
+- Material_Code (Product identifier)
+- Legislation (Regulatory framework)
+- Region (Geographic area)
+- Category (Product category)
+- Cust_Dedic (Customer dedication)
+- Proj_Phase (Project phase)
+- Material_Description (Product description)
+- Legislation_L (Legislation details)
+- Energy values:
+  - Energy_Value_kCal
+  - Energy_Value_kJ
+  - Calories_From_Fat
+- Macronutrients:
+  - Protein_g
+  - Protein_DV_perc (Daily Value percentage)
+  - Total_Carbohydrates_g
+  - Total_Carbohydrates_DV_perc
+  - Available_Carbohydrates_g
+  - Total_Fat_g
+  - Total_Fat_DV_perc
+  - Sugars
+- Micronutrients:
+  - Salt_g
+  - Sodium_mg
+  - Sodium_DV_perc
+  - Cholesterol_mg
+  - Cholesterol_DV_perc
+  - Iron_mg
+  - Calcium_mg
+  - Vitamin_A_mcg
+  - Vitamin_C_mg
+- Specific Fat Information:
+  - Saturated_Fatty_Acid_g
+  - Trans_Fatty_Acid_Tfa_g
+- Other Nutrients:
+  - Fibre_g
+  - Dietary_Fibre_DV_perc
+
+### Key Features
+- Comprehensive nutritional profiling
+- Region-specific regulatory compliance
+- Daily Value percentages for key nutrients
+- Energy content in multiple units (kCal, kJ)
+- Detailed breakdown of fats, proteins, and carbohydrates
+- Micronutrient content including vitamins and minerals
+
+### Usage
+Used for:
+- Product labeling compliance
+- Nutritional fact panels
+- Dietary analysis
+- Regional regulatory requirements
+- Product specification documentation
+- Customer information requests
+- Health claim validation
+- Recipe formulation guidance
+
+### Regulatory Compliance
+Supports compliance with:
+- EU nutritional labeling requirements
+- Regional food safety regulations
+- Daily Value calculations
+- Nutritional claim validations
+
+## 8. Classification Information (01 Classification New.csv)
+
+### Description
+Contains detailed product classification and technical specifications for chocolate products, including material codes, descriptions, and various product attributes.
+
+### Schema
+- Material_Code (Product identifier)
+- Material_Description (Product description)
+- Category (Product category)
+- Region (Geographic area)
+- Customer_Dedicated
+- Proj_Phase (Project phase)
+- Base_Type_Short/Base_Type
+- Moulding_Type_Short/Moulding_Type
+- Product_Type_Short/Product_Type
+- Technical Specifications:
+  - Dimensions
+  - Viscosity parameters
+  - pH ranges
+  - Fineness measurements
+  - Shelf life
+  - Bulk density
+- Certifications and Claims:
+  - Kosher_Certificate
+  - Country_Claim
+  - Certification information
+
+### Key Features
+- Comprehensive product categorization
+- Technical specifications
+- Production parameters
+- Quality control metrics
+- Certification tracking
+- Dimensional specifications
+
+### Usage
+Used for:
+- Product identification
+- Technical specification verification
+- Production planning
+- Quality control
+- Certification management
+- Customer specification matching
+
+## 9. Allergen Information (04 Allergens.csv)
+
+### Description
+Provides detailed allergen information and dietary suitability for products according to various legislative requirements.
+
+### Schema
+- Material_Code (Product identifier)
+- Legislation/Region/Category information
+- Material_Description
+- Legislation__Alg_L (Allergen legislation)
+- Allergen Indicators:
+  - ALBA001__ALG_N through ALBA020__ALG_N
+- Dietary Suitability:
+  - Suitable_For_Vegetarians
+  - Suitable_For_Vegans
+- Specific Allergens:
+  - Sulphite
+  - Celery
+  - Sesame_Products
+  - Various oils (Hazelnut, Almond, Sesame, Peanut)
+  - Mustard
+  - Molluscs
+  - Lupin
+  - Buckwheat
+  - Peanuts
+
+### Key Features
+- Comprehensive allergen tracking
+- Dietary suitability information
+- Legislative compliance indicators
+- Multiple allergen categories
+- Oil-specific information
+
+### Usage
+Used for:
+- Allergen compliance
+- Product labeling
+- Dietary suitability determination
+- Risk assessment
+- Customer specification matching
+- Production planning (allergen management)
+- Quality control
