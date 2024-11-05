@@ -21,7 +21,7 @@ class QAEngine:
             """
             
             response = self.client.chat.completions.create(
-                model="gpt-4",  # Using gpt-4 for complex tasks
+                model="gpt-4-mini",  # Using gpt-4-mini for QA tasks
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
                 max_tokens=500
