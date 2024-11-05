@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Tuple, Union
+import streamlit as st
 
 class ProductMatchingEngine:
     def __init__(self):
@@ -45,6 +46,84 @@ class ProductMatchingEngine:
             'NAM': ['US', 'CA'],  # USA, Canada
             'APAC': ['SG', 'JP', 'AU']  # Singapore, Japan, Australia
         }
+
+    def get_cross_sell_recommendations(self, material_code: str) -> List[Dict]:
+        '''Generate cross-sell recommendations for a given product'''
+        try:
+            # Get the main product details
+            main_product = self.classification_data[
+                self.classification_data['Material_Code'] == material_code
+            ].iloc[0]
+            
+            # Get potential complementary products
+            recommendations = []
+            base_type = main_product['Base_Type'].split()[0].capitalize()
+            
+            # Find complementary products with different base types
+            complementary_products = self.classification_data[
+                (self.classification_data['Material_Code'] != material_code) &
+                (self.classification_data['Base_Type'].str.split().str[0] != base_type)
+            ]
+            
+            for _, product in complementary_products.iterrows():
+                compatibility_details = {
+                    'base_type_match': self.base_type_similarity.get(base_type, {}).get(
+                        product['Base_Type'].split()[0].capitalize(), 0.0
+                    ),
+                    'technical_compatibility': self._calculate_technical_compatibility(
+                        main_product, product
+                    ),
+                    'regional_availability': 1.0 if product['Material_Code'][:2] == material_code[:2] else 0.5
+                }
+                
+                # Calculate overall compatibility score
+                compatibility_score = sum(compatibility_details.values()) / len(compatibility_details)
+                
+                if compatibility_score >= 0.6:  # Only include good matches
+                    recommendations.append({
+                        'material_code': product['Material_Code'],
+                        'description': product['Material_Description'],
+                        'compatibility_score': compatibility_score,
+                        'compatibility_details': compatibility_details,
+                        'details': self._get_product_details(product),
+                        'pairing_suggestions': self._generate_pairing_suggestions(
+                            main_product, product
+                        )
+                    })
+            
+            # Sort by compatibility score
+            recommendations.sort(key=lambda x: x['compatibility_score'], reverse=True)
+            return recommendations[:3]  # Return top 3 recommendations
+        except Exception as e:
+            st.error(f"Error generating cross-sell recommendations: {str(e)}")
+            return []
+
+    def _calculate_technical_compatibility(self, product1: pd.Series, product2: pd.Series) -> float:
+        '''Calculate technical compatibility between two products'''
+        try:
+            # Compare viscosity ranges
+            viscosity_diff = abs(float(product1['Viscosity']) - float(product2['Viscosity']))
+            viscosity_score = max(0, 1 - (viscosity_diff / 0.5))  # Normalize difference
+            
+            # Compare pH values
+            ph_diff = abs(float(product1['pH']) - float(product2['pH']))
+            ph_score = max(0, 1 - (ph_diff / 0.5))
+            
+            return (viscosity_score + ph_score) / 2
+        except:
+            return 0.5  # Default score if comparison fails
+
+    def _generate_pairing_suggestions(self, main_product: pd.Series, complementary_product: pd.Series) -> List[str]:
+        '''Generate pairing suggestions for two products'''
+        base1 = main_product['Base_Type'].split()[0].lower()
+        base2 = complementary_product['Base_Type'].split()[0].lower()
+        
+        suggestions = [
+            f"Create a layered effect by combining {base1} and {base2} chocolate",
+            f"Use {base1} chocolate as base and {base2} chocolate for decoration",
+            f"Blend both chocolates for a unique marble effect"
+        ]
+        return suggestions
     
     def phase1_search(self, requirements: Dict) -> Tuple[List[Dict], Dict]:
         """
