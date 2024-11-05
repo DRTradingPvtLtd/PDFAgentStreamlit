@@ -27,16 +27,6 @@ def initialize_session_state():
         st.session_state.product_matches = None
     if 'sales_pitch' not in st.session_state:
         st.session_state.sales_pitch = None
-    if 'user_preferences' not in st.session_state:
-        st.session_state.user_preferences = {
-            'chocolate_type': None,
-            'flavor_notes': None,
-            'dietary_restrictions': None,
-            'cocoa_percentage': None
-        }
-
-def update_preferences(key, value):
-    st.session_state.user_preferences[key] = value
 
 def process_uploaded_document(pdf_text):
     """Process uploaded document and generate analysis"""
@@ -52,60 +42,24 @@ def process_uploaded_document(pdf_text):
         # Find matching products
         if st.session_state.extracted_requirements:
             st.session_state.product_matches = st.session_state.qa_engine.product_matcher.find_matching_products(
-                st.session_state.extracted_requirements,
-                st.session_state.user_preferences
+                st.session_state.extracted_requirements
             )
             
             # Generate sales pitch
             if st.session_state.product_matches:
                 st.session_state.sales_pitch = st.session_state.qa_engine.generate_product_pitch(
                     pdf_text,
-                    st.session_state.extracted_requirements,
-                    st.session_state.user_preferences
+                    st.session_state.extracted_requirements
                 )
 
 def main():
     st.title("🍫 Chocolate PDF Q&A Assistant")
     st.markdown("""
     Upload a PDF document to analyze chocolate-related content, get summaries, and ask questions.
-    The AI will help you understand and explore the document while considering your chocolate preferences.
+    The AI will help you understand and explore the document.
     """)
 
     initialize_session_state()
-
-    # User Preferences Section
-    with st.sidebar:
-        st.header("🎯 Your Chocolate Preferences")
-        chocolate_type = st.selectbox(
-            "Preferred Chocolate Type",
-            ["Dark", "Milk", "White", "Ruby", "No Preference"],
-            key="choc_type",
-            on_change=lambda: update_preferences('chocolate_type', st.session_state.choc_type)
-        )
-
-        flavor_notes = st.multiselect(
-            "Preferred Flavor Notes",
-            ["Fruity", "Nutty", "Floral", "Spicy", "Caramel", "Vanilla", "Earthy"],
-            key="flavors",
-            on_change=lambda: update_preferences('flavor_notes', st.session_state.flavors)
-        )
-
-        dietary_restrictions = st.multiselect(
-            "Dietary Restrictions",
-            ["Vegan", "Sugar-Free", "Gluten-Free", "Nut-Free", "Dairy-Free", "None"],
-            key="diet",
-            on_change=lambda: update_preferences('dietary_restrictions', st.session_state.diet)
-        )
-
-        cocoa_percentage = st.slider(
-            "Preferred Cocoa Percentage",
-            min_value=30,
-            max_value=100,
-            value=70,
-            step=5,
-            key="cocoa",
-            on_change=lambda: update_preferences('cocoa_percentage', st.session_state.cocoa)
-        )
 
     # File upload section
     with st.container():
@@ -168,8 +122,7 @@ def main():
                     with st.spinner("Generating answer..."):
                         answer = st.session_state.qa_engine.get_answer(
                             st.session_state.pdf_text,
-                            user_question,
-                            st.session_state.user_preferences
+                            user_question
                         )
                         st.markdown("### Answer:")
                         st.markdown(answer)

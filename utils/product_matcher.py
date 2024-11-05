@@ -10,155 +10,117 @@ class ProductMatchingEngine:
         self.nutrition_data = pd.read_csv('reference_data/03_Nutrition.csv')
         self.allergen_data = pd.read_csv('reference_data/04_Allergens.csv')
         
-        # Initialize mappings
+        # Initialize mappings and similarity matrices
         self._init_mappings()
     
     def _init_mappings(self):
-        """Initialize internal mappings for quick lookups"""
-        self.base_type_mapping = {}
-        self.product_type_mapping = {}
-        self.viscosity_ranges = {}
+        """Initialize internal mappings and similarity matrices"""
+        # Base type similarity matrix
+        self.base_type_similarity = {
+            'Dark': {'Dark': 1.0, 'Milk': 0.3, 'White': 0.1, 'Ruby': 0.2},
+            'Milk': {'Dark': 0.3, 'Milk': 1.0, 'White': 0.6, 'Ruby': 0.5},
+            'White': {'Dark': 0.1, 'White': 1.0, 'Milk': 0.6, 'Ruby': 0.4},
+            'Ruby': {'Dark': 0.2, 'Ruby': 1.0, 'Milk': 0.5, 'White': 0.4}
+        }
         
-        # Create mappings from technical parameters
-        for _, row in self.technical_params.iterrows():
-            technique = row['Technique']
-            segment = row['Segment']
-            key = f"{technique}_{segment}"
-            self.viscosity_ranges[key] = {
-                'min_viscosity': row['Min Viscosity (Casson)'],
-                'max_viscosity': row['Max Viscosity (Casson)']
-            }
+        # Product type similarity matrix
+        self.product_type_similarity = {
+            'Standard': {'Standard': 1.0, 'Premium': 0.7, 'Sugar-Free': 0.3},
+            'Premium': {'Premium': 1.0, 'Standard': 0.7, 'Sugar-Free': 0.4},
+            'Sugar-Free': {'Sugar-Free': 1.0, 'Standard': 0.3, 'Premium': 0.4}
+        }
+        
+        # Technical parameters ranges from reference data
+        self.technical_ranges = {}
+        for param in ['Viscosity', 'pH', 'Fineness']:
+            if param in self.classification_data.columns:
+                self.technical_ranges[param] = {
+                    'min': self.classification_data[param].min(),
+                    'max': self.classification_data[param].max(),
+                    'range': self.classification_data[param].max() - self.classification_data[param].min()
+                }
     
-    def find_matching_products(self, 
-                             requirements: Dict,
-                             user_preferences: Optional[Dict] = None) -> List[Dict]:
+    def find_matching_products(self, requirements: Dict) -> List[Dict]:
         """
-        Find matching products based on requirements and user preferences
+        Find matching and similar products based on requirements
         
         Args:
             requirements: Dict containing product requirements
-            user_preferences: Optional dict containing user chocolate preferences
             
         Returns:
             List of matching products with their details and match scores
         """
         matches = []
-        filtered_products = self._apply_initial_filters(requirements)
+        all_products = self.classification_data.copy()
         
-        for _, product in filtered_products.iterrows():
-            match_score = self._calculate_match_score(product, requirements, user_preferences)
-            if match_score > 0.5:  # Minimum threshold for considering a match
+        for _, product in all_products.iterrows():
+            match_score, similarity_details = self._calculate_similarity_score(product, requirements)
+            
+            if match_score > 0.3:  # Include products with at least 30% similarity
                 matches.append({
                     'material_code': product['Material_Code'],
                     'description': product['Material_Description'],
                     'match_score': match_score,
-                    'details': self._get_product_details(product)
+                    'similarity_details': similarity_details,
+                    'details': self._get_product_details(product),
+                    'is_exact_match': match_score > 0.8  # Consider products with >80% similarity as exact matches
                 })
         
         # Sort by match score
         matches.sort(key=lambda x: x['match_score'], reverse=True)
-        return matches[:5]  # Return top 5 matches
+        return matches[:10]  # Return top 10 matches
     
-    def _apply_initial_filters(self, requirements: Dict) -> pd.DataFrame:
-        """Apply initial filters based on basic requirements"""
-        filtered = self.classification_data.copy()
-        
-        # Apply base filters
-        if 'base_type' in requirements:
-            filtered = filtered[filtered['Base_Type'].str.contains(
-                requirements['base_type'], case=False, na=False)]
-            
-        if 'product_type' in requirements:
-            filtered = filtered[filtered['Product_Type'].str.contains(
-                requirements['product_type'], case=False, na=False)]
-            
-        if 'region' in requirements:
-            filtered = filtered[filtered['Region'] == requirements['region']]
-            
-        return filtered
-    
-    def _calculate_match_score(self, 
-                             product: pd.Series, 
-                             requirements: Dict,
-                             user_preferences: Optional[Dict]) -> float:
-        """Calculate match score between product and requirements"""
-        score = 0.0
+    def _calculate_similarity_score(self, product: pd.Series, requirements: Dict) -> Tuple[float, Dict]:
+        """Calculate detailed similarity score between product and requirements"""
+        scores = {}
         weights = {
-            'base_type': 0.3,
-            'product_type': 0.2,
-            'technical_params': 0.3,
-            'user_preferences': 0.2
+            'base_type': 0.35,
+            'product_type': 0.25,
+            'technical_specs': 0.25,
+            'region': 0.15
         }
         
-        # Base type match
+        # Base type similarity
         if requirements.get('base_type'):
-            if requirements['base_type'].lower() in product['Base_Type'].lower():
-                score += weights['base_type']
+            req_base = requirements['base_type'].capitalize()
+            prod_base = product['Base_Type'].split()[0].capitalize()  # Get primary base type
+            base_similarity = self.base_type_similarity.get(req_base, {}).get(prod_base, 0.0)
+            scores['base_type'] = base_similarity
+        else:
+            scores['base_type'] = 0.5  # Neutral score if no preference
         
-        # Product type match
+        # Product type similarity
         if requirements.get('product_type'):
-            if requirements['product_type'].lower() in product['Product_Type'].lower():
-                score += weights['product_type']
+            req_type = requirements['product_type'].capitalize()
+            prod_type = product['Product_Type'].split()[0].capitalize()
+            type_similarity = self.product_type_similarity.get(req_type, {}).get(prod_type, 0.0)
+            scores['product_type'] = type_similarity
+        else:
+            scores['product_type'] = 0.5
         
-        # Technical parameters match
-        if requirements.get('technical_params'):
-            tech_score = self._check_technical_parameters(
-                product, requirements['technical_params'])
-            score += tech_score * weights['technical_params']
+        # Technical specifications similarity
+        if requirements.get('technical_specs'):
+            tech_scores = []
+            for param, value in requirements['technical_specs'].items():
+                if param in product and param in self.technical_ranges:
+                    range_info = self.technical_ranges[param]
+                    normalized_diff = abs(float(product[param]) - float(value)) / range_info['range']
+                    param_score = max(0, 1 - normalized_diff)
+                    tech_scores.append(param_score)
+            scores['technical_specs'] = sum(tech_scores) / len(tech_scores) if tech_scores else 0.5
+        else:
+            scores['technical_specs'] = 0.5
         
-        # User preferences match
-        if user_preferences:
-            pref_score = self._check_user_preferences(product, user_preferences)
-            score += pref_score * weights['user_preferences']
+        # Region match
+        if requirements.get('region'):
+            scores['region'] = 1.0 if requirements['region'] == product['Region'] else 0.0
+        else:
+            scores['region'] = 0.5
         
-        return score
-    
-    def _check_technical_parameters(self, 
-                                  product: pd.Series, 
-                                  tech_params: Dict) -> float:
-        """Check if product meets technical parameters"""
-        score = 0.0
-        total_params = len(tech_params)
+        # Calculate weighted average
+        total_score = sum(scores[key] * weights[key] for key in weights)
         
-        for param, value in tech_params.items():
-            if param in product and self._is_within_range(product[param], value):
-                score += 1.0
-        
-        return score / total_params if total_params > 0 else 0.0
-    
-    def _check_user_preferences(self, 
-                              product: pd.Series, 
-                              preferences: Dict) -> float:
-        """Check how well product matches user preferences"""
-        score = 0.0
-        total_prefs = len(preferences)
-        
-        # Check chocolate type preference
-        if preferences.get('chocolate_type'):
-            if preferences['chocolate_type'].lower() in product['Base_Type'].lower():
-                score += 1.0
-        
-        # Check dietary restrictions
-        if preferences.get('dietary_restrictions'):
-            allergen_info = self._get_allergen_info(product['Material_Code'])
-            if self._meets_dietary_restrictions(allergen_info, 
-                                             preferences['dietary_restrictions']):
-                score += 1.0
-        
-        # Check cocoa percentage
-        if preferences.get('cocoa_percentage'):
-            if self._matches_cocoa_percentage(product, preferences['cocoa_percentage']):
-                score += 1.0
-        
-        return score / total_prefs if total_prefs > 0 else 0.0
-    
-    def _get_allergen_info(self, material_code: str) -> Dict:
-        """Get allergen information for a product"""
-        allergen_row = self.allergen_data[
-            self.allergen_data['Material_Code'] == material_code
-        ].iloc[0] if len(self.allergen_data) > 0 else None
-        
-        return allergen_row.to_dict() if allergen_row is not None else {}
+        return total_score, scores
     
     def _get_product_details(self, product: pd.Series) -> Dict:
         """Get detailed information about a product"""
@@ -187,32 +149,10 @@ class ProductMatchingEngine:
         
         return nutrition_row.to_dict() if nutrition_row is not None else {}
     
-    @staticmethod
-    def _is_within_range(value: float, target: Union[float, Tuple[float, float]]) -> bool:
-        """Check if value is within acceptable range"""
-        if isinstance(target, tuple):
-            return target[0] <= value <= target[1]
-        return abs(value - target) / target <= 0.1  # 10% tolerance
-    
-    @staticmethod
-    def _meets_dietary_restrictions(allergen_info: Dict, 
-                                  restrictions: List[str]) -> bool:
-        """Check if product meets dietary restrictions"""
-        for restriction in restrictions:
-            if restriction.lower() == 'vegan':
-                if not allergen_info.get('Suitable_For_Vegans', False):
-                    return False
-            elif restriction.lower() == 'gluten-free':
-                if allergen_info.get('Contains_Gluten', False):
-                    return False
-            # Add more restriction checks as needed
-        return True
-    
-    @staticmethod
-    def _matches_cocoa_percentage(product: pd.Series, 
-                                target_percentage: int) -> bool:
-        """Check if product matches desired cocoa percentage"""
-        # This is a simplified check - would need actual cocoa percentage data
-        if 'cocoa_percentage' in product:
-            return abs(product['cocoa_percentage'] - target_percentage) <= 5
-        return False
+    def _get_allergen_info(self, material_code: str) -> Dict:
+        """Get allergen information for a product"""
+        allergen_row = self.allergen_data[
+            self.allergen_data['Material_Code'] == material_code
+        ].iloc[0] if len(self.allergen_data) > 0 else None
+        
+        return allergen_row.to_dict() if allergen_row is not None else {}
