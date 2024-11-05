@@ -1,7 +1,7 @@
 from phi.llm.openai.chat import OpenAIChat
 import os
 from typing import List, Dict, Any
-from phi.agent import Agent
+from phi.agent.agent import Agent
 
 class BaseAgent(Agent):
     """Base class for all agents in the system using phidata framework."""
@@ -27,8 +27,5 @@ class BaseAgent(Agent):
         """Log agent actions for monitoring."""
         message = f"[{self.name}] {action}" + (f": {details}" if details else "")
         print(message)
-        self.add_to_history("system", message)
-    
-    def add_to_history(self, role: str, content: str):
-        """Add a message to the conversation history."""
-        self._conversation_history.append({"role": role, "content": content})
+        # Use the inherited add_to_history method
+        super().add_to_history("system", message)

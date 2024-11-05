@@ -23,7 +23,8 @@ class SummaryAgent(BaseAgent):
             prompt = self._create_summary_prompt(text, summary_type)
             self.add_to_history("user", prompt)
             
-            response = await self.llm.chat(messages=self._conversation_history)
+            # Use get_conversation_history() instead of _conversation_history
+            response = await self.llm.chat(messages=self.get_conversation_history())
             summary = response.content
             
             self.add_to_history("assistant", summary)
