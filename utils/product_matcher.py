@@ -9,14 +9,20 @@ from .agents import (
     RecommendationAgent
 )
 from .agent_progress import AgentProgressTracker
+import os
+from pathlib import Path
 
 class ProductMatchingEngine:
     def __init__(self):
-        # Load reference data
-        self.classification_data = pd.read_csv('reference_data/01_Classification_New.csv')
-        self.technical_params = pd.read_csv('reference_data/01_Technical_parameters_per_Production_Technique.csv')
-        self.nutrition_data = pd.read_csv('reference_data/03_Nutrition.csv')
-        self.allergen_data = pd.read_csv('reference_data/04_Allergens.csv')
+        # Get the absolute path to the reference_data directory
+        base_dir = Path(__file__).parent.parent
+        reference_data_dir = base_dir / 'reference_data'
+
+        # Load reference data with absolute paths
+        self.classification_data = pd.read_csv(reference_data_dir / '01_Classification_New.csv')
+        self.technical_params = pd.read_csv(reference_data_dir / '01_Technical_parameters_per_Production_Technique.csv')
+        self.nutrition_data = pd.read_csv(reference_data_dir / '03_Nutrition.csv')
+        self.allergen_data = pd.read_csv(reference_data_dir / '04_Allergens.csv')
         
         # Initialize agents
         self.market_segment_agent = MarketSegmentAgent()
