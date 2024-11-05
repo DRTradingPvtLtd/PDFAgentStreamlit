@@ -21,6 +21,8 @@ def init_session_state():
         st.session_state.pdf_text = None
     if 'summary' not in st.session_state:
         st.session_state.summary = None
+    if 'recommendations' not in st.session_state:
+        st.session_state.recommendations = None
 
 async def process_pdf(coordinator, file):
     """Process PDF file using the coordinator."""
@@ -36,7 +38,12 @@ async def generate_summary(coordinator, text, summary_type):
     """Generate summary using the coordinator."""
     result = await coordinator.generate_summary(text, summary_type)
     if result["success"]:
-        return result["summary"]
+        summary = result["summary"]
+        # Get product recommendations based on summary
+        recommendations = await coordinator.get_product_recommendations(summary)
+        if recommendations["success"]:
+            st.session_state.recommendations = recommendations["recommendations"]
+        return summary
     else:
         st.error(f"Error generating summary: {result.get('error', 'Unknown error')}")
         return None
@@ -50,11 +57,55 @@ async def get_answer(coordinator, context, question):
         st.error(f"Error generating answer: {result.get('error', 'Unknown error')}")
         return None
 
+def display_recommendations(recommendations):
+    """Display product recommendations with filtering and sorting options."""
+    st.subheader("🛍️ Recommended Products")
+    
+    # Filtering options
+    st.markdown("### Filter Options")
+    col1, col2 = st.columns(2)
+    with col1:
+        min_score = st.slider("Minimum Relevance Score", 0, 100, 50)
+    with col2:
+        categories = list(set(prod["category"] for prod in recommendations))
+        selected_category = st.selectbox("Filter by Category", ["All"] + categories)
+    
+    # Sorting options
+    sort_by = st.selectbox("Sort by", ["Relevance Score", "Price (Low to High)", "Price (High to Low)"])
+    
+    # Filter and sort recommendations
+    filtered_recommendations = [
+        r for r in recommendations 
+        if r["relevance_score"] >= min_score 
+        and (selected_category == "All" or r["category"] == selected_category)
+    ]
+    
+    if sort_by == "Price (Low to High)":
+        filtered_recommendations.sort(key=lambda x: x["price"])
+    elif sort_by == "Price (High to Low)":
+        filtered_recommendations.sort(key=lambda x: x["price"], reverse=True)
+    else:  # Default: sort by relevance score
+        filtered_recommendations.sort(key=lambda x: x["relevance_score"], reverse=True)
+    
+    # Display recommendations
+    if filtered_recommendations:
+        for product in filtered_recommendations:
+            with st.expander(f"{product['name']} (Score: {product['relevance_score']})"):
+                st.markdown(f"**Category:** {product['category'].title()}")
+                st.markdown(f"**Price:** ${product['price']:.2f}")
+                st.markdown(f"**Description:** {product['description']}")
+                st.markdown("**Features:**")
+                for feature in product['features']:
+                    st.markdown(f"- {feature}")
+                st.markdown(f"**Match Explanation:** {product['match_explanation']}")
+    else:
+        st.info("No products match the current filters.")
+
 def main():
     st.title("📚 PDF Q&A Assistant")
     st.markdown("""
-    Upload a PDF document to get summaries and ask questions about its content.
-    The AI will help you understand and explore the document.
+    Upload a PDF document to get summaries, ask questions about its content, and receive relevant product recommendations.
+    The AI will help you understand and explore the document while suggesting products that match your needs.
     """)
 
     # Initialize session state
@@ -84,7 +135,7 @@ def main():
             )
             
             if st.button("Generate Summary"):
-                with st.spinner("Generating summary..."):
+                with st.spinner("Generating summary and recommendations..."):
                     summary = asyncio.run(generate_summary(
                         st.session_state.coordinator,
                         st.session_state.pdf_text,
@@ -96,6 +147,11 @@ def main():
             if st.session_state.summary:
                 st.markdown("### Summary:")
                 st.markdown(st.session_state.summary)
+                st.divider()
+                
+                # Display product recommendations if available
+                if st.session_state.recommendations:
+                    display_recommendations(st.session_state.recommendations)
                 st.divider()
             
             # Display text preview
