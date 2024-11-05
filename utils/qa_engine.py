@@ -2,6 +2,7 @@ import os
 from openai import AzureOpenAI
 import streamlit as st
 import json
+from typing import Dict, List, Optional, Union
 from .product_matcher import ProductMatchingEngine
 
 class QAEngine:
@@ -20,7 +21,7 @@ class QAEngine:
         self.deployment_name = os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4")
         self.product_matcher = ProductMatchingEngine()
 
-    def extract_requirements(self, text: str) -> dict:
+    def extract_requirements(self, text: str) -> Dict[str, Union[str, Dict[str, str]]]:
         """Extract product requirements from the document text"""
         try:
             prompt = f"""
@@ -70,27 +71,14 @@ class QAEngine:
             st.error(f"Error extracting requirements: {str(e)}")
             return {}
 
-    def get_answer(self, context: str, question: str, user_preferences: dict = None) -> str:
+    def get_answer(self, context: str, question: str) -> str:
         try:
-            preferences_context = ""
-            if user_preferences:
-                preferences_context = f"""
-                Consider the following user preferences while answering:
-                - Preferred chocolate type: {user_preferences.get('chocolate_type', 'N/A')}
-                - Preferred flavor notes: {user_preferences.get('flavor_notes', 'N/A')}
-                - Dietary restrictions: {user_preferences.get('dietary_restrictions', 'N/A')}
-                - Cocoa percentage preference: {user_preferences.get('cocoa_percentage', 'N/A')}
-                """
-
             prompt = f"""
             Context: {context}
-            
-            {preferences_context}
             
             Question: {question}
             
             Please provide a concise and accurate answer based on the context above.
-            If the question is about chocolate products, consider the user's preferences in your response.
             If the answer cannot be found in the context, please say "I cannot find the answer in the provided text."
             """
 
@@ -149,18 +137,8 @@ class QAEngine:
             st.error(f"Error generating summary: {str(e)}")
             return "Sorry, I encountered an error while generating the summary."
 
-    def generate_product_pitch(self, context: str, requirements: dict, user_preferences: dict = None) -> str:
+    def generate_product_pitch(self, context: str, requirements: Dict[str, Union[str, Dict[str, str]]]) -> str:
         try:
-            preferences_context = ""
-            if user_preferences:
-                preferences_context = f"""
-                Consider these user preferences:
-                - Chocolate type preference: {user_preferences.get('chocolate_type', 'N/A')}
-                - Flavor notes preference: {user_preferences.get('flavor_notes', 'N/A')}
-                - Dietary restrictions: {user_preferences.get('dietary_restrictions', 'N/A')}
-                - Cocoa percentage preference: {user_preferences.get('cocoa_percentage', 'N/A')}
-                """
-
             requirements_str = "\n".join([f"- {k}: {v}" for k, v in requirements.items() if v])
 
             prompt = f"""
@@ -168,8 +146,6 @@ class QAEngine:
             
             Requirements:
             {requirements_str}
-            
-            {preferences_context}
             
             Please create a persuasive sales pitch that:
             1. Highlights key product features that align with the extracted requirements
@@ -196,3 +172,62 @@ class QAEngine:
         except Exception as e:
             st.error(f"Error generating sales pitch: {str(e)}")
             return "Sorry, I encountered an error while generating the sales pitch."
+
+    def generate_cross_sell_pitch(self, main_product: Dict[str, Union[str, Dict]], complementary_products: List[Dict[str, Union[str, Dict]]]) -> str:
+        """Generate a compelling cross-sell pitch for product combinations"""
+        try:
+            # Format product information
+            main_product_info = (
+                f"Main Product: {main_product['description']}\n"
+                f"Base Type: {main_product['details']['base_type']}\n"
+                f"Product Type: {main_product['details']['product_type']}"
+            )
+            
+            complementary_info = []
+            for prod in complementary_products:
+                pairing_suggestions = "\n".join([f"  - {s}" for s in prod['pairing_suggestions']])
+                info = (
+                    f"Complementary Product: {prod['description']}\n"
+                    f"Compatibility Score: {prod['compatibility_score']:.2f}\n"
+                    f"Suggested Pairings:\n{pairing_suggestions}"
+                )
+                complementary_info.append(info)
+            
+            complementary_products_str = "\n\n".join(complementary_info)
+
+            prompt = f"""
+            Create a compelling cross-sell pitch for the following chocolate product combination:
+
+            {main_product_info}
+
+            Recommended Combinations:
+            {complementary_products_str}
+
+            Please create an engaging pitch that:
+            1. Highlights the synergies between the main product and each complementary product
+            2. Emphasizes how the combinations enhance the customer's chocolate experience
+            3. Suggests creative ways to use the products together
+            4. Mentions any technical advantages of the combinations
+            5. Includes specific pairing recommendations and serving suggestions
+            
+            Format the pitch in sections:
+            1. Introduction highlighting the main product
+            2. Individual sections for each complementary pairing
+            3. Conclusion emphasizing the value of the combined offering
+            """
+
+            response = self.client.chat.completions.create(
+                model=self.deployment_name,
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }],
+                temperature=0.7,
+                max_tokens=1000)
+
+            content = response.choices[0].message.content
+            return content if content else "Sorry, I couldn't generate a cross-sell pitch."
+
+        except Exception as e:
+            st.error(f"Error generating cross-sell pitch: {str(e)}")
+            return "Sorry, I encountered an error while generating the cross-sell pitch."

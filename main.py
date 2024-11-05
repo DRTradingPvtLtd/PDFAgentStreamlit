@@ -27,6 +27,10 @@ def initialize_session_state():
         st.session_state.product_matches = None
     if 'sales_pitch' not in st.session_state:
         st.session_state.sales_pitch = None
+    if 'cross_sell_recommendations' not in st.session_state:
+        st.session_state.cross_sell_recommendations = None
+    if 'cross_sell_pitch' not in st.session_state:
+        st.session_state.cross_sell_pitch = None
 
 def process_uploaded_document(pdf_text):
     """Process uploaded document and generate analysis"""
@@ -51,6 +55,19 @@ def process_uploaded_document(pdf_text):
                     pdf_text,
                     st.session_state.extracted_requirements
                 )
+                
+                # Get cross-sell recommendations for the top match
+                top_match = st.session_state.product_matches[0]
+                st.session_state.cross_sell_recommendations = st.session_state.qa_engine.product_matcher.get_cross_sell_recommendations(
+                    top_match['material_code']
+                )
+                
+                # Generate cross-sell pitch
+                if st.session_state.cross_sell_recommendations:
+                    st.session_state.cross_sell_pitch = st.session_state.qa_engine.generate_cross_sell_pitch(
+                        top_match,
+                        st.session_state.cross_sell_recommendations
+                    )
 
 def main():
     st.title("🍫 Chocolate PDF Q&A Assistant")
@@ -104,6 +121,35 @@ def main():
                     with st.expander(f"{match['description']} (Score: {match['match_score']:.2f})"):
                         st.json(match['details'])
             st.divider()
+            
+            # Cross-Sell Recommendations
+            if st.session_state.cross_sell_recommendations:
+                st.subheader("🤝 Recommended Combinations")
+                st.markdown("Based on your top matching product, here are some complementary recommendations:")
+                
+                for rec in st.session_state.cross_sell_recommendations:
+                    with st.expander(
+                        f"{rec['description']} (Compatibility: {rec['compatibility_score']:.2f})"
+                    ):
+                        # Display compatibility details
+                        st.markdown("#### Compatibility Analysis")
+                        for aspect, score in rec['compatibility_details'].items():
+                            st.progress(score, text=f"{aspect.replace('_', ' ').title()}: {score:.2f}")
+                        
+                        # Display pairing suggestions
+                        st.markdown("#### Pairing Suggestions")
+                        for suggestion in rec['pairing_suggestions']:
+                            st.markdown(f"- {suggestion}")
+                        
+                        # Display technical details
+                        st.markdown("#### Product Details")
+                        st.json(rec['details'])
+                
+                # Display cross-sell pitch
+                if st.session_state.cross_sell_pitch:
+                    st.markdown("### Combined Product Pitch")
+                    st.markdown(st.session_state.cross_sell_pitch)
+                st.divider()
             
             # Sales Pitch
             st.subheader("💼 Generated Sales Pitch")
