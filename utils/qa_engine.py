@@ -24,7 +24,7 @@ class QAEngine:
             """
 
             response = self.client.chat.completions.create(
-                model="gpt-4-1106-preview",
+                model="gpt-4o-mini",
                 messages=[{
                     "role": "user",
                     "content": prompt
@@ -54,7 +54,7 @@ class QAEngine:
             Ensure the summary is clear, accurate, and well-structured."""
 
             response = self.client.chat.completions.create(
-                model="gpt-4-1106-preview",
+                model="gpt-4o-mini",
                 messages=[{
                     "role": "user",
                     "content": prompt
