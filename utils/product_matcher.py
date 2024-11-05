@@ -23,230 +23,295 @@ class ProductMatchingEngine:
             'Ruby': {'Dark': 0.2, 'Ruby': 1.0, 'Milk': 0.5, 'White': 0.4}
         }
         
-        # Base type complementarity matrix (for cross-selling)
-        self.base_type_complementarity = {
-            'Dark': {'Dark': 0.3, 'Milk': 0.9, 'White': 0.7, 'Ruby': 0.6},
-            'Milk': {'Dark': 0.9, 'Milk': 0.4, 'White': 0.8, 'Ruby': 0.7},
-            'White': {'Dark': 0.7, 'Milk': 0.8, 'White': 0.3, 'Ruby': 0.6},
-            'Ruby': {'Dark': 0.6, 'Milk': 0.7, 'White': 0.6, 'Ruby': 0.3}
+        # Market segments and their applications
+        self.market_segments = {
+            'Confectionery': ['Tablets', 'Pralines', 'Countlines', 'Protein Bars'],
+            'Bakery': ['Butter cakes', 'Celebration cakes', 'Laminated pastries'],
+            'Ice Cream': ['Ice cream bars', 'Ice cream cones', 'Ice cream sandwiches'],
+            'Desserts': ['Frozen desserts', 'Spoonable desserts', 'Yogurt applications']
         }
         
-        # Product type similarity matrix
-        self.product_type_similarity = {
-            'Standard': {'Standard': 1.0, 'Premium': 0.7, 'Sugar-Free': 0.3},
-            'Premium': {'Premium': 1.0, 'Standard': 0.7, 'Sugar-Free': 0.4},
-            'Sugar-Free': {'Sugar-Free': 1.0, 'Standard': 0.3, 'Premium': 0.4}
+        # Delivery format alternatives
+        self.delivery_format_alternatives = {
+            'Drops': ['Block', 'Callets', 'Easymelt'],
+            'Block': ['Drops', 'Callets', 'Easymelt'],
+            'Callets': ['Drops', 'Block', 'Easymelt'],
+            'Easymelt': ['Drops', 'Block', 'Callets']
         }
         
-        # Technical parameters ranges from reference data
-        self.technical_ranges = {}
-        for param in ['Viscosity', 'pH', 'Fineness']:
-            if param in self.classification_data.columns:
-                self.technical_ranges[param] = {
-                    'min': self.classification_data[param].min(),
-                    'max': self.classification_data[param].max(),
-                    'range': self.classification_data[param].max() - self.classification_data[param].min()
-                }
+        # Region mappings
+        self.region_mappings = {
+            'EU': ['BE', 'NL', 'PL', 'TR'],  # Belgium, Netherlands, Poland, Turkey
+            'NAM': ['US', 'CA'],  # USA, Canada
+            'APAC': ['SG', 'JP', 'AU']  # Singapore, Japan, Australia
+        }
     
-    def find_matching_products(self, requirements: Dict) -> List[Dict]:
-        """Find matching and similar products based on requirements"""
-        matches = []
-        all_products = self.classification_data.copy()
+    def phase1_search(self, requirements: Dict) -> Tuple[List[Dict], Dict]:
+        """
+        Perform Phase 1 search with strict criteria
+        Returns: (matching_products, search_stats)
+        """
+        products = self.classification_data.copy()
+        initial_count = len(products)
+        stats = {'initial_count': initial_count}
         
-        for _, product in all_products.iterrows():
-            match_score, similarity_details = self._calculate_similarity_score(product, requirements)
-            
-            if match_score > 0.3:  # Include products with at least 30% similarity
-                matches.append({
-                    'material_code': product['Material_Code'],
-                    'description': product['Material_Description'],
-                    'match_score': match_score,
-                    'similarity_details': similarity_details,
-                    'details': self._get_product_details(product),
-                    'is_exact_match': match_score > 0.8  # Consider products with >80% similarity as exact matches
-                })
+        # 1. Market Segment & Application Filter
+        if requirements.get('market_segment'):
+            segment = requirements['market_segment'].lower()
+            applications = self.market_segments.get(segment.capitalize(), [])
+            if applications:
+                products = products[products['Category'].str.lower().isin([app.lower() for app in applications])]
+                stats['after_segment_filter'] = len(products)
+        
+        # 2. Product Type Filter
+        if requirements.get('product_type'):
+            products = products[products['Product_Type'].str.contains(requirements['product_type'], case=False)]
+            stats['after_product_type'] = len(products)
+        
+        # 3. Base Type Filter
+        if requirements.get('base_type'):
+            products = products[products['Base_Type'].str.contains(requirements['base_type'], case=False)]
+            stats['after_base_type'] = len(products)
+        
+        # 4. Delivery Format Filter
+        if requirements.get('delivery_format'):
+            products = products[products['Moulding_Type'].str.contains(requirements['delivery_format'], case=False)]
+            stats['after_delivery_format'] = len(products)
+        
+        # 5. Technical Requirements
+        if requirements.get('technical_specs'):
+            for spec, value in requirements['technical_specs'].items():
+                if spec in products.columns:
+                    products = products[
+                        (products[spec] >= float(value) * 0.9) & 
+                        (products[spec] <= float(value) * 1.1)
+                    ]
+            stats['after_technical_specs'] = len(products)
+        
+        # 6. Protein Content Filter
+        if requirements.get('min_protein_percentage'):
+            protein_threshold = float(requirements['min_protein_percentage'])
+            products = pd.merge(
+                products,
+                self.nutrition_data[['Material_Code', 'Protein_g']],
+                on='Material_Code',
+                how='left'
+            )
+            products = products[products['Protein_g'] >= protein_threshold]
+            stats['after_protein_filter'] = len(products)
+        
+        # Convert remaining products to list of dictionaries
+        matches = []
+        for _, product in products.iterrows():
+            match_details = self._get_product_details(product)
+            match_score = self._calculate_match_score(product, requirements)
+            matches.append({
+                'material_code': product['Material_Code'],
+                'description': product['Material_Description'],
+                'match_score': match_score,
+                'details': match_details
+            })
         
         # Sort by match score
         matches.sort(key=lambda x: x['match_score'], reverse=True)
-        return matches[:10]  # Return top 10 matches
-    
-    def get_cross_sell_recommendations(self, material_code: str) -> List[Dict]:
+        stats['final_count'] = len(matches)
+        
+        return matches, stats
+
+    def phase2_search(self, requirements: Dict) -> Tuple[List[Dict], Dict]:
         """
-        Get cross-sell recommendations for a given product
-        
-        Args:
-            material_code: Material code of the main product
-            
-        Returns:
-            List of complementary products with compatibility scores
+        Perform Phase 2 search with relaxed criteria
+        Returns: (matching_products, search_stats)
         """
-        recommendations = []
-        main_product = self.classification_data[
-            self.classification_data['Material_Code'] == material_code
-        ].iloc[0]
+        relaxed_requirements = requirements.copy()
+        stats = {'original_requirements': requirements}
         
-        all_products = self.classification_data[
-            self.classification_data['Material_Code'] != material_code
-        ]
+        # 1. Relax delivery format requirements
+        if requirements.get('delivery_format'):
+            original_format = requirements['delivery_format']
+            alternative_formats = self.delivery_format_alternatives.get(original_format, [])
+            relaxed_requirements['delivery_format'] = '|'.join([original_format] + alternative_formats)
         
-        for _, product in all_products.iterrows():
-            compatibility_score, compatibility_details = self._calculate_compatibility_score(
-                main_product, product)
+        # 2. Relax protein percentage requirement
+        if requirements.get('min_protein_percentage'):
+            original_protein = float(requirements['min_protein_percentage'])
+            relaxed_protein = original_protein * 0.8  # 20% relaxation
+            relaxed_requirements['min_protein_percentage'] = relaxed_protein
+            stats['relaxed_protein_requirement'] = relaxed_protein
+        
+        # 3. Expand regional search
+        if requirements.get('region'):
+            original_region = requirements['region']
+            region_codes = self.region_mappings.get(original_region, [])
+            if region_codes:
+                relaxed_requirements['region_codes'] = region_codes
+        
+        # Perform search with relaxed requirements
+        products = self.classification_data.copy()
+        initial_count = len(products)
+        stats['initial_count'] = initial_count
+        
+        # Apply relaxed filters
+        # 1. Market Segment & Application (keep original)
+        if relaxed_requirements.get('market_segment'):
+            segment = relaxed_requirements['market_segment'].lower()
+            applications = self.market_segments.get(segment.capitalize(), [])
+            if applications:
+                products = products[products['Category'].str.lower().isin([app.lower() for app in applications])]
+                stats['after_segment_filter'] = len(products)
+        
+        # 2. Base Type (keep original)
+        if relaxed_requirements.get('base_type'):
+            products = products[products['Base_Type'].str.contains(relaxed_requirements['base_type'], case=False)]
+            stats['after_base_type'] = len(products)
+        
+        # 3. Apply relaxed delivery format
+        if relaxed_requirements.get('delivery_format'):
+            products = products[products['Moulding_Type'].str.contains(relaxed_requirements['delivery_format'], case=False)]
+            stats['after_delivery_format'] = len(products)
+        
+        # 4. Apply relaxed protein requirement
+        if relaxed_requirements.get('min_protein_percentage'):
+            protein_threshold = float(relaxed_requirements['min_protein_percentage'])
+            products = pd.merge(
+                products,
+                self.nutrition_data[['Material_Code', 'Protein_g']],
+                on='Material_Code',
+                how='left'
+            )
+            products = products[products['Protein_g'] >= protein_threshold]
+            stats['after_protein_filter'] = len(products)
+        
+        # 5. Apply regional filter
+        if relaxed_requirements.get('region_codes'):
+            products = products[products['Material_Code'].str[:2].isin(relaxed_requirements['region_codes'])]
+            stats['after_region_filter'] = len(products)
+        
+        # Convert remaining products to list of dictionaries with additional information
+        matches = []
+        for _, product in products.iterrows():
+            match_details = self._get_product_details(product)
+            match_score = self._calculate_match_score(product, requirements)  # Use original requirements for scoring
+            relaxation_details = self._calculate_relaxation_details(product, requirements, relaxed_requirements)
             
-            if compatibility_score > 0.4:  # Include products with good compatibility
-                recommendations.append({
-                    'material_code': product['Material_Code'],
-                    'description': product['Material_Description'],
-                    'compatibility_score': compatibility_score,
-                    'compatibility_details': compatibility_details,
-                    'details': self._get_product_details(product),
-                    'pairing_suggestions': self._generate_pairing_suggestions(
-                        main_product, product)
-                })
+            matches.append({
+                'material_code': product['Material_Code'],
+                'description': product['Material_Description'],
+                'match_score': match_score,
+                'details': match_details,
+                'relaxation_details': relaxation_details
+            })
         
-        # Sort by compatibility score
-        recommendations.sort(key=lambda x: x['compatibility_score'], reverse=True)
-        return recommendations[:5]  # Return top 5 recommendations
-    
-    def _calculate_compatibility_score(self, main_product: pd.Series, 
-                                    complementary_product: pd.Series) -> Tuple[float, Dict]:
-        """Calculate compatibility score between two products"""
-        scores = {}
+        # Sort by match score
+        matches.sort(key=lambda x: x['match_score'], reverse=True)
+        stats['final_count'] = len(matches)
+        
+        return matches, stats
+
+    def _calculate_match_score(self, product: pd.Series, requirements: Dict) -> float:
+        """Calculate how well a product matches the original requirements"""
+        scores = []
         weights = {
-            'base_type_complement': 0.35,
-            'product_type_match': 0.25,
-            'technical_compatibility': 0.25,
-            'region_availability': 0.15
+            'base_type': 0.3,
+            'delivery_format': 0.2,
+            'protein_content': 0.3,
+            'region': 0.2
         }
         
-        # Base type complementarity
-        main_base = main_product['Base_Type'].split()[0].capitalize()
-        comp_base = complementary_product['Base_Type'].split()[0].capitalize()
-        scores['base_type_complement'] = self.base_type_complementarity.get(
-            main_base, {}).get(comp_base, 0.0)
-        
-        # Product type matching (premium with premium, etc.)
-        main_type = main_product['Product_Type'].split()[0].capitalize()
-        comp_type = complementary_product['Product_Type'].split()[0].capitalize()
-        scores['product_type_match'] = self.product_type_similarity.get(
-            main_type, {}).get(comp_type, 0.0)
-        
-        # Technical compatibility
-        tech_scores = []
-        for param in ['Viscosity', 'pH']:
-            if param in main_product and param in complementary_product:
-                diff = abs(float(main_product[param]) - float(complementary_product[param]))
-                range_info = self.technical_ranges[param]
-                normalized_diff = diff / range_info['range']
-                tech_scores.append(max(0, 1 - normalized_diff))
-        scores['technical_compatibility'] = sum(tech_scores) / len(tech_scores) if tech_scores else 0.5
-        
-        # Region availability (same region preferred)
-        scores['region_availability'] = 1.0 if main_product['Region'] == complementary_product['Region'] else 0.5
-        
-        # Calculate weighted average
-        total_score = sum(scores[key] * weights[key] for key in weights)
-        
-        return total_score, scores
-    
-    def _generate_pairing_suggestions(self, main_product: pd.Series, 
-                                    complementary_product: pd.Series) -> List[str]:
-        """Generate pairing suggestions for two products"""
-        suggestions = []
-        
-        # Base type combinations
-        main_base = main_product['Base_Type'].split()[0].lower()
-        comp_base = complementary_product['Base_Type'].split()[0].lower()
-        
-        if main_base == 'dark' and comp_base == 'milk':
-            suggestions.append("Create a luxurious layered dessert")
-            suggestions.append("Perfect for dual-flavor molding")
-        elif main_base == 'dark' and comp_base == 'white':
-            suggestions.append("Ideal for striking visual contrast in decorative pieces")
-            suggestions.append("Excellent for marbled effects")
-        elif main_base == 'milk' and comp_base == 'white':
-            suggestions.append("Great for creamy, multi-layered confections")
-            suggestions.append("Perfect for swirled presentations")
-        
-        # Product type combinations
-        if 'premium' in main_product['Product_Type'].lower():
-            suggestions.append("Combine for luxury gift assortments")
-        if 'sugar-free' in main_product['Product_Type'].lower():
-            suggestions.append("Ideal for health-conscious variety packs")
-        
-        return suggestions if suggestions else ["Versatile combination for various applications"]
-    
-    def _calculate_similarity_score(self, product: pd.Series, requirements: Dict) -> Tuple[float, Dict]:
-        """Calculate detailed similarity score between product and requirements"""
-        scores = {}
-        weights = {
-            'base_type': 0.35,
-            'product_type': 0.25,
-            'technical_specs': 0.25,
-            'region': 0.15
-        }
-        
-        # Base type similarity
+        # Base type match
         if requirements.get('base_type'):
             req_base = requirements['base_type'].capitalize()
             prod_base = product['Base_Type'].split()[0].capitalize()
-            base_similarity = self.base_type_similarity.get(req_base, {}).get(prod_base, 0.0)
-            scores['base_type'] = base_similarity
-        else:
-            scores['base_type'] = 0.5
+            base_score = self.base_type_similarity.get(req_base, {}).get(prod_base, 0.0)
+            scores.append(('base_type', base_score))
         
-        # Product type similarity
-        if requirements.get('product_type'):
-            req_type = requirements['product_type'].capitalize()
-            prod_type = product['Product_Type'].split()[0].capitalize()
-            type_similarity = self.product_type_similarity.get(req_type, {}).get(prod_type, 0.0)
-            scores['product_type'] = type_similarity
-        else:
-            scores['product_type'] = 0.5
+        # Delivery format match
+        if requirements.get('delivery_format'):
+            req_format = requirements['delivery_format'].lower()
+            prod_format = product['Moulding_Type'].lower()
+            format_score = 1.0 if req_format in prod_format else 0.5 if req_format in self.delivery_format_alternatives else 0.0
+            scores.append(('delivery_format', format_score))
         
-        # Technical specifications similarity
-        if requirements.get('technical_specs'):
-            tech_scores = []
-            for param, value in requirements['technical_specs'].items():
-                if param in product and param in self.technical_ranges:
-                    range_info = self.technical_ranges[param]
-                    normalized_diff = abs(float(product[param]) - float(value)) / range_info['range']
-                    param_score = max(0, 1 - normalized_diff)
-                    tech_scores.append(param_score)
-            scores['technical_specs'] = sum(tech_scores) / len(tech_scores) if tech_scores else 0.5
-        else:
-            scores['technical_specs'] = 0.5
+        # Protein content match
+        if requirements.get('min_protein_percentage'):
+            req_protein = float(requirements['min_protein_percentage'])
+            prod_protein = float(self.nutrition_data[
+                self.nutrition_data['Material_Code'] == product['Material_Code']
+            ]['Protein_g'].iloc[0])
+            protein_score = min(prod_protein / req_protein, 1.0) if prod_protein >= req_protein * 0.8 else 0.0
+            scores.append(('protein_content', protein_score))
         
         # Region match
         if requirements.get('region'):
-            scores['region'] = 1.0 if requirements['region'] == product['Region'] else 0.0
-        else:
-            scores['region'] = 0.5
+            req_region = requirements['region']
+            prod_region_code = product['Material_Code'][:2]
+            region_score = 1.0 if prod_region_code in self.region_mappings.get(req_region, []) else 0.0
+            scores.append(('region', region_score))
         
         # Calculate weighted average
-        total_score = sum(scores[key] * weights[key] for key in weights)
+        if scores:
+            weighted_score = sum(weights[category] * score for category, score in scores)
+            return weighted_score
+        return 0.0
+
+    def _calculate_relaxation_details(self, product: pd.Series, original_reqs: Dict, relaxed_reqs: Dict) -> Dict:
+        """Calculate and explain how requirements were relaxed for this match"""
+        relaxations = {}
         
-        return total_score, scores
-    
+        # Check delivery format relaxation
+        if original_reqs.get('delivery_format') != relaxed_reqs.get('delivery_format'):
+            original_format = original_reqs['delivery_format']
+            current_format = product['Moulding_Type']
+            relaxations['delivery_format'] = {
+                'original': original_format,
+                'current': current_format,
+                'notes': f"Alternative format accepted: {current_format}"
+            }
+        
+        # Check protein content relaxation
+        if original_reqs.get('min_protein_percentage') != relaxed_reqs.get('min_protein_percentage'):
+            original_protein = float(original_reqs['min_protein_percentage'])
+            current_protein = float(self.nutrition_data[
+                self.nutrition_data['Material_Code'] == product['Material_Code']
+            ]['Protein_g'].iloc[0])
+            protein_difference = ((original_protein - current_protein) / original_protein) * 100
+            relaxations['protein_content'] = {
+                'original': f"{original_protein}%",
+                'current': f"{current_protein}%",
+                'difference': f"{protein_difference:.1f}% lower than requested"
+            }
+        
+        # Check region relaxation
+        if original_reqs.get('region') and 'region_codes' in relaxed_reqs:
+            original_region = original_reqs['region']
+            current_region_code = product['Material_Code'][:2]
+            relaxations['region'] = {
+                'original': original_region,
+                'current': current_region_code,
+                'notes': "Alternative production location accepted"
+            }
+        
+        return relaxations
+
     def _get_product_details(self, product: pd.Series) -> Dict:
-        """Get detailed information about a product"""
+        """Get comprehensive product details including nutrition and allergen information"""
         details = {
             'base_type': product['Base_Type'],
             'product_type': product['Product_Type'],
-            'region': product['Region'],
+            'moulding_type': product['Moulding_Type'],
             'technical_specs': {},
             'nutrition': self._get_nutrition_info(product['Material_Code']),
-            'allergens': self._get_allergen_info(product['Material_Code'])
+            'allergens': self._get_allergen_info(product['Material_Code']),
+            'production_location': product['Material_Code'][:2]
         }
         
         # Add technical specifications
-        tech_columns = ['Viscosity', 'pH', 'Fineness', 'Shelf_Life']
-        for col in tech_columns:
+        for col in ['Viscosity', 'pH', 'Fineness', 'Shelf_Life']:
             if col in product:
                 details['technical_specs'][col.lower()] = product[col]
         
         return details
-    
+
     def _get_nutrition_info(self, material_code: str) -> Dict:
         """Get nutrition information for a product"""
         nutrition_row = self.nutrition_data[
@@ -254,7 +319,7 @@ class ProductMatchingEngine:
         ].iloc[0] if len(self.nutrition_data) > 0 else None
         
         return nutrition_row.to_dict() if nutrition_row is not None else {}
-    
+
     def _get_allergen_info(self, material_code: str) -> Dict:
         """Get allergen information for a product"""
         allergen_row = self.allergen_data[
@@ -262,3 +327,31 @@ class ProductMatchingEngine:
         ].iloc[0] if len(self.allergen_data) > 0 else None
         
         return allergen_row.to_dict() if allergen_row is not None else {}
+
+    def find_matching_products(self, requirements: Dict) -> List[Dict]:
+        """
+        Main entry point for product matching. Implements two-phase search strategy.
+        """
+        # Phase 1: Strict search
+        phase1_matches, phase1_stats = self.phase1_search(requirements)
+        
+        # If Phase 1 yields sufficient results, return them
+        if len(phase1_matches) >= 5:
+            return phase1_matches
+        
+        # Phase 2: Relaxed search
+        phase2_matches, phase2_stats = self.phase2_search(requirements)
+        
+        # Combine unique matches from both phases
+        all_matches = phase1_matches.copy()
+        existing_codes = {match['material_code'] for match in all_matches}
+        
+        for match in phase2_matches:
+            if match['material_code'] not in existing_codes:
+                match['phase'] = 'phase2'  # Mark as Phase 2 match
+                all_matches.append(match)
+                existing_codes.add(match['material_code'])
+        
+        # Sort combined results by match score
+        all_matches.sort(key=lambda x: x['match_score'], reverse=True)
+        return all_matches[:10]  # Return top 10 matches

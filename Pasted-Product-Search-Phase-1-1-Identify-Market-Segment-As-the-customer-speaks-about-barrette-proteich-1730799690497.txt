@@ -1,0 +1,45 @@
+Product Search Phase 1
+1.	Identify Market Segment 
+As the customer speaks about "barrette proteiche" translated from Italian to English as “Protein Bars” which belongs to Confectionery market segment
+2.	Identify Customer Application
+From the file 02 Customer Application.xlsx, the most fitting one is Cereal/Protein bars
+3.	Identify Product Type
+a.	Run 1 - Based on the description "milk chocolate drops”, the most fitting ones out of the file 03 Product Type.xlsx are the following choc. max 5% coconut oil, choc without added sugar, chocolate, choc > 5% fat replaced, choc max 5% fat 
+Potential SKUs in 01 Classification.xlsx file after this step = 4019
+4.	Identify Base type
+a.	Run 1 - Based on the description "milk chocolate drops”, the most fitting ones out of the file 04 Base Type.xlsx are the following : Milk, Flavoured based on Milk 
+Potential SKUs in 01 Classification.xlsx file after this step = 1418
+5.	Identify Delivery Format / Moulding type
+a.	Run 1 - Based on the description "milk chocolate drops”, the most fitting ones out of the file 05 Delivery Format or Moulding Type.xlsx are the following : Drops / Chips, drops up to 10000 / kg 
+Potential SKUs in 01 Classification.xlsx file after this step = 1
+Running this filter across the file 01 Classification.xlsx results in only 1 SKU -> CHM-DR-23SG8-S25
+Now let’s see what else was there
+6.	Customer says, it requires >22% Protein - Now when we checked this material against the file 03 Nutrition.xlsx, we see that the SKU above has less than 5% Protein, which will not fit. The protein % was calculated, as it is not mentioned in the column Protein_DV_perc 
+Therefore, we did not reach any conclusion in Phase 1.  
+Product Search Phase 2
+Now, we could try to relax some filters. Based on the understanding of what the customer is trying to achieve.
+1.	Lets keep the filters until step 4 from phase 1 -> 1418 potential SKUs
+
+2.	Checking what other Delivery Format / Moulding type would fit the customer application
+a.	Quick Search from the internet/ChatGPT reveals: following could work: Block, Callets, Easymelt. 
+b.	Had a call with the customer, to see, if those formats would work. Customer responded Easymelt could work. 
+Potential SKUs in 01 Classification.xlsx file after this step = 330
+
+3.	Now, check the protein percentage
+To have more hits, we are looking for protein % > 18%, as the customer can adapt other components in their recipe to compensate for the lower protein %
+ 
+Potential SKUs in 01 Classification.xlsx file after this step = 8
+
+4.	Identify the customer geographical location
+As the customer speaks about "barrette proteiche" translated from Italian to English. We will limit our search to European products.
+Cross checked all articles with the field Plant_BoM_Owner, the first 2 letters correspond to the country of production. All the countries are close to the customer location: namely Turkey, Poland, Netherlands, Belgium.
+
+5.	The list is then shared with the customer, Customer is requesting a sample has chosen last SKU CSM-Q1S-WAP-566 to be sent to them 
+
+Note: Following was not part of the scope of the hackathon.
+1.	After the first run, if the result is Zero, then it becomes quite important that the results of the subsequent runs, clearly shows the comparison view – difference from customer request.
+2.	As the customer is requesting an urgent sample, the Sorting mechanism should be considered, where do we have stock?
+3.	Customer requested Malitol, which is a sugar alcohol that is commonly used as a sugar substitute in various food products, especially those labeled as "sugar-free" or "low-calorie." 
+a.	Searching for this requires detailed BOM analysis
+b.	There could be different alternatives, such as Sorbitol, Stevia, Erythritol, etc.
+
