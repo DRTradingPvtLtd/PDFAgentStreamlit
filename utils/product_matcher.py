@@ -8,31 +8,14 @@ from .agents import (
     Phase2SearchAgent,
     RecommendationAgent
 )
-from .database import DatabaseManager
 
 class ProductMatchingEngine:
     def __init__(self):
-        # Initialize database manager
-        self.db_manager = DatabaseManager()
-        
-        try:
-            # Initialize database and load initial data if needed
-            self.db_manager.initialize_database()
-            self.db_manager.load_initial_data()
-            
-            # Load data from SQL database
-            self.classification_data = self.db_manager.get_classification_data()
-            self.technical_params = self.db_manager.get_technical_params_data()
-            self.nutrition_data = self.db_manager.get_nutrition_data()
-            self.allergen_data = self.db_manager.get_allergens_data()
-            
-        except Exception as e:
-            st.error(f"Error initializing database: {str(e)}")
-            # Fallback to CSV files if database initialization fails
-            self.classification_data = pd.read_csv('reference_data/01_Classification_New.csv')
-            self.technical_params = pd.read_csv('reference_data/01_Technical_parameters_per_Production_Technique.csv')
-            self.nutrition_data = pd.read_csv('reference_data/03_Nutrition.csv')
-            self.allergen_data = pd.read_csv('reference_data/04_Allergens.csv')
+        # Load reference data
+        self.classification_data = pd.read_csv('reference_data/01_Classification_New.csv')
+        self.technical_params = pd.read_csv('reference_data/01_Technical_parameters_per_Production_Technique.csv')
+        self.nutrition_data = pd.read_csv('reference_data/03_Nutrition.csv')
+        self.allergen_data = pd.read_csv('reference_data/04_Allergens.csv')
         
         # Initialize agents
         self.market_segment_agent = MarketSegmentAgent()
