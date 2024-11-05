@@ -1,0 +1,30 @@
+{
+    "products": [
+        {
+            "name": "DocumentAI Pro",
+            "description": "Advanced document analysis and processing software with AI capabilities",
+            "category": "software",
+            "price": 199.99,
+            "features": [
+                "AI-powered text analysis",
+                "Multiple document format support",
+                "Automated summarization",
+                "Content extraction",
+                "Cloud integration"
+            ]
+        },
+        {
+            "name": "SmartDoc Manager",
+            "description": "Comprehensive document management system for businesses",
+            "category": "software",
+            "price": 149.99,
+            "features": [
+                "Document organization",
+                "Version control",
+                "Collaboration tools",
+                "Search functionality",
+                "Security features"
+            ]
+        }
+    ]
+}

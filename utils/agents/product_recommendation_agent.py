@@ -1,8 +1,9 @@
 from .base_agent import BaseAgent
-import json
-from typing import List, Dict
 import os
 from openai import AzureOpenAI
+from typing import List, Dict
+import glob
+import json
 
 class ProductRecommendationAgent(BaseAgent):
     """Agent responsible for product recommendations based on document analysis."""
@@ -10,7 +11,6 @@ class ProductRecommendationAgent(BaseAgent):
     def __init__(self):
         super().__init__("Product Recommendation Agent")
         self._initialize_azure_client()
-        self._initialize_product_database()
     
     def _initialize_azure_client(self):
         """Initialize Azure OpenAI client."""
@@ -27,34 +27,80 @@ class ProductRecommendationAgent(BaseAgent):
         )
         self.deployment_name = os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4")
 
-    def _initialize_product_database(self):
-        """Initialize mock product database."""
-        self.products = [
-            {
-                "id": "1",
-                "name": "Professional PDF Reader",
-                "description": "Advanced PDF reading and annotation software",
-                "category": "software",
-                "price": 99.99,
-                "features": ["PDF editing", "annotations", "OCR capabilities"]
-            },
-            {
-                "id": "2",
-                "name": "Document Scanner Pro",
-                "description": "High-speed document scanner with OCR",
-                "category": "hardware",
-                "price": 299.99,
-                "features": ["OCR", "wireless scanning", "cloud integration"]
-            },
-            {
-                "id": "3",
-                "name": "Cloud Storage Plus",
-                "description": "Secure cloud storage for documents",
-                "category": "service",
-                "price": 9.99,
-                "features": ["document storage", "sharing", "version control"]
-            }
-        ]
+    def _scan_files(self, extensions=['.txt', '.md', '.json']) -> List[Dict]:
+        """Scan the filesystem for product-related files."""
+        products = []
+        base_dirs = ['products', 'data', '.']  # Directories to scan
+        
+        for base_dir in base_dirs:
+            if os.path.exists(base_dir):
+                for ext in extensions:
+                    pattern = os.path.join(base_dir, f'**/*{ext}')
+                    for file_path in glob.glob(pattern, recursive=True):
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                content = f.read()
+                                file_info = {
+                                    'path': file_path,
+                                    'name': os.path.basename(file_path),
+                                    'content': content,
+                                    'size': os.path.getsize(file_path),
+                                    'modified': os.path.getmtime(file_path)
+                                }
+                                
+                                # Try to parse JSON files
+                                if file_path.endswith('.json'):
+                                    try:
+                                        parsed_content = json.loads(content)
+                                        file_info['parsed_content'] = parsed_content
+                                    except json.JSONDecodeError:
+                                        pass
+                                
+                                products.append(file_info)
+                        except Exception as e:
+                            self.log_action("File reading error", f"Error reading {file_path}: {str(e)}")
+        
+        return products
+
+    async def _extract_product_info(self, file_info: Dict) -> Dict:
+        """Extract product information from file content using Azure OpenAI."""
+        prompt = f"""
+        Analyze the following file content and extract product-related information in a structured format.
+        If the content doesn't appear to be product-related, return null.
+
+        File name: {file_info['name']}
+        Content: {file_info['content'][:2000]}  # Limit content length
+
+        Return a JSON object with the following structure if product-related:
+        {{
+            "name": "Product name",
+            "description": "Product description",
+            "category": "Product category",
+            "features": ["feature1", "feature2"],
+            "price": estimated_price_if_mentioned_or_null
+        }}
+        """
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.deployment_name,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+                max_tokens=500
+            )
+            
+            content = response.choices[0].message.content
+            try:
+                product_info = json.loads(content)
+                if product_info:
+                    return {**file_info, **product_info}
+            except (json.JSONDecodeError, TypeError):
+                pass
+            
+        except Exception as e:
+            self.log_action("Extraction error", str(e))
+        
+        return None
 
     async def process(self, summary: str, requirements: str = None) -> dict:
         """Process document summary and requirements to recommend products."""
@@ -63,15 +109,25 @@ class ProductRecommendationAgent(BaseAgent):
             if not requirements:
                 requirements = await self._extract_requirements(summary)
             
+            # Scan files and extract product information
+            files = self._scan_files()
+            products = []
+            
+            for file_info in files:
+                product_info = await self._extract_product_info(file_info)
+                if product_info:
+                    products.append(product_info)
+            
             # Match products based on requirements
-            matches = await self._match_products(requirements)
+            matches = await self._match_products(requirements, products)
             
             return {
                 "success": True,
                 "recommendations": matches,
                 "metadata": {
                     "requirements": requirements,
-                    "total_matches": len(matches)
+                    "total_matches": len(matches),
+                    "scanned_files": len(files)
                 }
             }
         except Exception as e:
@@ -100,49 +156,50 @@ class ProductRecommendationAgent(BaseAgent):
         
         return response.choices[0].message.content
 
-    async def _match_products(self, requirements: str) -> List[Dict]:
-        """Match products based on requirements."""
+    async def _match_products(self, requirements: str, products: List[Dict]) -> List[Dict]:
+        """Match products based on requirements using content similarity."""
         prompt = f"""
-        Given the following user requirements and product database, rank the products by relevance and provide a score from 0-100:
+        Given the following user requirements and list of products, analyze the relevance of each product and provide a score from 0-100:
 
         Requirements: {requirements}
 
-        Products: {json.dumps(self.products, indent=2)}
+        For each product, consider:
+        1. How well the product features match the requirements
+        2. The relevance of the product category to the requirements
+        3. The completeness of the product information
 
-        For each product, return a JSON object with the product details and a relevance score.
-        Include a brief explanation of why the product matches the requirements.
+        Return a brief explanation of why each product matches or doesn't match the requirements.
         """
 
-        response = self.client.chat.completions.create(
-            model=self.deployment_name,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-            max_tokens=1000
-        )
-
-        # Process the response to create structured recommendations
         recommendations = []
-        for product in self.products:
-            match_score = self._calculate_match_score(product, requirements)
-            recommendations.append({
-                **product,
-                "relevance_score": match_score,
-                "match_explanation": f"Product features align with requirements: {', '.join(product['features'])}"
-            })
+        
+        for product in products:
+            product_prompt = f"{prompt}\n\nProduct:\n{json.dumps(product, indent=2)}"
+            
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.deployment_name,
+                    messages=[{"role": "user", "content": product_prompt}],
+                    temperature=0.0,
+                    max_tokens=300
+                )
+                
+                analysis = response.choices[0].message.content
+                
+                # Extract score from analysis (assuming it's mentioned in the text)
+                import re
+                score_match = re.search(r'(\d{1,3})', analysis)
+                score = int(score_match.group(1)) if score_match else 50
+                
+                recommendations.append({
+                    **product,
+                    "relevance_score": score,
+                    "match_explanation": analysis
+                })
+                
+            except Exception as e:
+                self.log_action("Matching error", f"Error matching product {product.get('name', 'unknown')}: {str(e)}")
         
         # Sort by relevance score
-        recommendations.sort(key=lambda x: x['relevance_score'], reverse=True)
+        recommendations.sort(key=lambda x: x.get('relevance_score', 0), reverse=True)
         return recommendations
-
-    def _calculate_match_score(self, product: Dict, requirements: str) -> int:
-        """Calculate a simple match score based on feature overlap."""
-        # Simple scoring mechanism - can be enhanced with more sophisticated logic
-        score = 50  # Base score
-        
-        # Check if any product features are mentioned in requirements
-        requirement_words = requirements.lower().split()
-        for feature in product['features']:
-            if feature.lower() in requirement_words:
-                score += 15
-                
-        return min(100, score)  # Cap score at 100
