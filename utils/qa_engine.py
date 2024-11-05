@@ -1,16 +1,23 @@
 import os
-from openai import OpenAI
+from openai import AzureOpenAI
 import streamlit as st
 
 
 class QAEngine:
 
     def __init__(self):
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
+        azure_api_key = os.environ.get("AZURE_OPENAI_API_KEY")
+        azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
+        if not azure_api_key or not azure_endpoint:
             raise ValueError(
-                "OpenAI API key is not set in environment variables")
-        self.client = OpenAI(api_key=api_key)
+                "Azure OpenAI API key or endpoint is not set in environment variables")
+        
+        self.client = AzureOpenAI(
+            api_key=azure_api_key,
+            api_version="2023-05-15",
+            azure_endpoint=azure_endpoint
+        )
+        self.deployment_name = os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4")
 
     def get_answer(self, context: str, question: str) -> str:
         try:
@@ -24,7 +31,7 @@ class QAEngine:
             """
 
             response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=self.deployment_name,
                 messages=[{
                     "role": "user",
                     "content": prompt
@@ -54,7 +61,7 @@ class QAEngine:
             Ensure the summary is clear, accurate, and well-structured."""
 
             response = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=self.deployment_name,
                 messages=[{
                     "role": "user",
                     "content": prompt
