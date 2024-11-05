@@ -1,6 +1,5 @@
 from .base_agent import BaseAgent
 import os
-import streamlit as st
 
 class QAAgent(BaseAgent):
     """Agent responsible for question answering operations."""
@@ -12,12 +11,13 @@ class QAAgent(BaseAgent):
         """Process a question and generate an answer."""
         try:
             prompt = self._create_qa_prompt(context, question)
-            self.add_to_history("user", prompt)
+            self.add_message("user", prompt)
             
-            response = await self.llm.chat(messages=self.get_conversation_history())
+            messages = self.get_messages()
+            response = await self.llm.chat(messages=messages)
             answer = response.content
             
-            self.add_to_history("assistant", answer)
+            self.add_message("assistant", answer)
             
             return {
                 "success": True,

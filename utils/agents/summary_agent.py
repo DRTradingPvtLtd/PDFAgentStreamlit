@@ -21,13 +21,16 @@ class SummaryAgent(BaseAgent):
                 summary_type = "concise"
             
             prompt = self._create_summary_prompt(text, summary_type)
-            self.add_to_history("user", prompt)
+            # Use phidata's method to add message
+            self.add_message("user", prompt)
             
-            # Use get_conversation_history() instead of _conversation_history
-            response = await self.llm.chat(messages=self.get_conversation_history())
+            # Get conversation history using phidata's method
+            messages = self.get_messages()
+            response = await self.llm.chat(messages=messages)
             summary = response.content
             
-            self.add_to_history("assistant", summary)
+            # Add response to history
+            self.add_message("assistant", summary)
             
             return {
                 "success": True,
