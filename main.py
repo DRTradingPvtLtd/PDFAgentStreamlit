@@ -49,6 +49,9 @@ def process_uploaded_document(pdf_text):
                 st.session_state.extracted_requirements
             )
             
+            # Render progress tracking visualization
+            st.session_state.qa_engine.product_matcher.render_progress()
+            
             # Generate sales pitch
             if st.session_state.product_matches:
                 st.session_state.sales_pitch = st.session_state.qa_engine.generate_product_pitch(
@@ -120,6 +123,9 @@ def main():
                 for match in st.session_state.product_matches:
                     with st.expander(f"{match['description']} (Score: {match['match_score']:.2f})"):
                         st.json(match['details'])
+                        if 'relaxation_details' in match:
+                            st.markdown("##### Relaxation Details")
+                            st.json(match['relaxation_details'])
             st.divider()
             
             # Cross-Sell Recommendations
