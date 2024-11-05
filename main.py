@@ -5,8 +5,8 @@ import os
 
 # Page configuration
 st.set_page_config(
-    page_title="PDF Q&A Assistant",
-    page_icon="📚",
+    page_title="Chocolate PDF Q&A Assistant",
+    page_icon="🍫",
     layout="wide"
 )
 
@@ -14,20 +14,74 @@ st.set_page_config(
 with open('assets/style.css') as f:
     st.markdown(f'<style>{f.read()}</style>', unsafe_allow_html=True)
 
-def main():
-    st.title("📚 PDF Q&A Assistant")
-    st.markdown("""
-    Upload a PDF document to get summaries and ask questions about its content.
-    The AI will help you understand and explore the document.
-    """)
-
-    # Initialize session state
+def initialize_session_state():
     if 'pdf_text' not in st.session_state:
         st.session_state.pdf_text = None
     if 'qa_engine' not in st.session_state:
         st.session_state.qa_engine = QAEngine()
     if 'summary' not in st.session_state:
         st.session_state.summary = None
+    if 'user_preferences' not in st.session_state:
+        st.session_state.user_preferences = {
+            'chocolate_type': None,
+            'flavor_notes': None,
+            'dietary_restrictions': None,
+            'cocoa_percentage': None
+        }
+
+def update_preferences(key, value):
+    st.session_state.user_preferences[key] = value
+
+def main():
+    st.title("🍫 Chocolate PDF Q&A Assistant")
+    st.markdown("""
+    Upload a PDF document to analyze chocolate-related content, get summaries, and ask questions.
+    The AI will help you understand and explore the document while considering your chocolate preferences.
+    """)
+
+    initialize_session_state()
+
+    # User Preferences Section
+    with st.sidebar:
+        st.header("🎯 Your Chocolate Preferences")
+        chocolate_type = st.selectbox(
+            "Preferred Chocolate Type",
+            ["Dark", "Milk", "White", "Ruby", "No Preference"],
+            key="choc_type",
+            on_change=lambda: update_preferences('chocolate_type', st.session_state.choc_type)
+        )
+
+        flavor_notes = st.multiselect(
+            "Preferred Flavor Notes",
+            ["Fruity", "Nutty", "Floral", "Spicy", "Caramel", "Vanilla", "Earthy"],
+            key="flavors",
+            on_change=lambda: update_preferences('flavor_notes', st.session_state.flavors)
+        )
+
+        dietary_restrictions = st.multiselect(
+            "Dietary Restrictions",
+            ["Vegan", "Sugar-Free", "Gluten-Free", "Nut-Free", "Dairy-Free", "None"],
+            key="diet",
+            on_change=lambda: update_preferences('dietary_restrictions', st.session_state.diet)
+        )
+
+        cocoa_percentage = st.slider(
+            "Preferred Cocoa Percentage",
+            min_value=30,
+            max_value=100,
+            value=70,
+            step=5,
+            key="cocoa",
+            on_change=lambda: update_preferences('cocoa_percentage', st.session_state.cocoa)
+        )
+
+        if st.button("Analyze My Preferences"):
+            with st.spinner("Analyzing your preferences..."):
+                analysis = st.session_state.qa_engine.analyze_chocolate_preferences(
+                    st.session_state.user_preferences
+                )
+                st.markdown("### Preference Analysis:")
+                st.markdown(analysis)
 
     # File upload section
     with st.container():
@@ -53,17 +107,22 @@ def main():
             
             # Document Summary Section
             st.subheader("📝 Document Summary")
-            summary_type = st.selectbox(
-                "Select summary type:",
-                ["concise", "detailed", "bullet_points"],
-                format_func=lambda x: x.replace('_', ' ').title()
-            )
+            cols = st.columns([3, 1])
+            with cols[0]:
+                summary_type = st.selectbox(
+                    "Select summary type:",
+                    ["concise", "detailed", "bullet_points"],
+                    format_func=lambda x: x.replace('_', ' ').title()
+                )
+            with cols[1]:
+                focus_on_chocolate = st.checkbox("Focus on Chocolate Content", value=True)
             
             if st.button("Generate Summary"):
                 with st.spinner("Generating summary..."):
                     st.session_state.summary = st.session_state.qa_engine.generate_summary(
                         st.session_state.pdf_text,
-                        summary_type
+                        summary_type,
+                        focus_on_chocolate
                     )
             
             if st.session_state.summary:
@@ -86,7 +145,8 @@ def main():
                     with st.spinner("Generating answer..."):
                         answer = st.session_state.qa_engine.get_answer(
                             st.session_state.pdf_text,
-                            user_question
+                            user_question,
+                            st.session_state.user_preferences
                         )
                         st.markdown("### Answer:")
                         st.markdown(answer)
@@ -96,13 +156,13 @@ def main():
             # Sales Pitch Generator Section
             st.subheader("🎯 Generate Sales Pitch")
             st.markdown("""
-            Generate a customized sales pitch based on the document content and specific customer requirements.
+            Generate a customized chocolate-focused sales pitch based on the document content and specific customer requirements.
             """)
             
             customer_requirements = st.text_area(
                 "Enter customer requirements and pain points:",
                 height=100,
-                placeholder="Example: Looking for a scalable solution that improves efficiency and reduces operational costs..."
+                placeholder="Example: Looking for premium dark chocolate gifts for corporate clients with dietary restrictions..."
             )
             
             if st.button("Generate Sales Pitch"):
@@ -112,7 +172,8 @@ def main():
                     with st.spinner("Generating sales pitch..."):
                         pitch = st.session_state.qa_engine.generate_product_pitch(
                             st.session_state.pdf_text,
-                            customer_requirements
+                            customer_requirements,
+                            st.session_state.user_preferences
                         )
                         st.markdown("### Generated Sales Pitch:")
                         st.markdown(pitch)

@@ -4,18 +4,27 @@
     margin: 0 auto;
 }
 
+/* Chocolate-themed color palette */
+:root {
+    --chocolate-dark: #3B2417;
+    --chocolate-milk: #855E42;
+    --chocolate-light: #C4A484;
+    --cream: #FDFBF7;
+}
+
 .upload-section {
     padding: 2rem;
     border-radius: 0.5rem;
-    background-color: #f8f9fa;
+    background-color: var(--cream);
     margin-bottom: 2rem;
+    border: 2px solid var(--chocolate-light);
 }
 
 .qa-section {
     padding: 2rem;
     border-radius: 0.5rem;
     background-color: #ffffff;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 4px rgba(59, 36, 23, 0.1);
 }
 
 .st-emotion-cache-1v0mbdj {
@@ -26,14 +35,52 @@
 .summary-section {
     margin: 2rem 0;
     padding: 1.5rem;
-    background-color: #f8f9fa;
+    background-color: var(--cream);
     border-radius: 0.5rem;
-    border-left: 4px solid #FF4B4B;
+    border-left: 4px solid var(--chocolate-dark);
 }
 
 /* Divider styles */
 hr {
     margin: 2rem 0;
     border: none;
-    border-top: 1px solid #e9ecef;
+    border-top: 1px solid var(--chocolate-light);
+}
+
+/* Sidebar styling */
+.css-1d391kg {
+    background-color: var(--cream);
+}
+
+/* Button styling */
+.stButton > button {
+    background-color: var(--chocolate-milk);
+    color: white;
+    border: none;
+    transition: background-color 0.3s ease;
+}
+
+.stButton > button:hover {
+    background-color: var(--chocolate-dark);
+}
+
+/* Slider styling */
+.stSlider > div > div > div {
+    background-color: var(--chocolate-milk);
+}
+
+/* Selectbox styling */
+.stSelectbox > div > div {
+    border-color: var(--chocolate-light);
+}
+
+/* Custom styling for headers */
+h1, h2, h3 {
+    color: var(--chocolate-dark);
+}
+
+/* Success message styling */
+.stSuccess {
+    background-color: #DFF0D8;
+    border-color: var(--chocolate-milk);
 }
