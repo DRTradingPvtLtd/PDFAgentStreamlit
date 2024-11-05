@@ -24,7 +24,7 @@ class QAEngine:
             """
 
             response = self.client.chat.completions.create(
-                model="gpt-4-1106-preview",  # Using gpt-4-1106-preview for QA tasks
+                model="gpt-4-1106-preview",
                 messages=[{
                     "role": "user",
                     "content": prompt
@@ -38,3 +38,33 @@ class QAEngine:
         except Exception as e:
             st.error(f"Error generating answer: {str(e)}")
             return "Sorry, I encountered an error while processing your question."
+
+    def generate_summary(self, text: str, summary_type: str = "concise") -> str:
+        try:
+            prompt_templates = {
+                "concise": "Please provide a brief summary of the following text in 2-3 sentences:",
+                "detailed": "Please provide a comprehensive summary of the following text, including main points and key details:",
+                "bullet_points": "Please summarize the following text in a bullet-point format, highlighting the key points:"
+            }
+            
+            prompt = f"""{prompt_templates.get(summary_type, prompt_templates['concise'])}
+
+            Text: {text}
+
+            Ensure the summary is clear, accurate, and well-structured."""
+
+            response = self.client.chat.completions.create(
+                model="gpt-4-1106-preview",
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }],
+                temperature=0.0,
+                max_tokens=1000)
+
+            content = response.choices[0].message.content
+            return content if content else "Sorry, I couldn't generate a summary."
+
+        except Exception as e:
+            st.error(f"Error generating summary: {str(e)}")
+            return "Sorry, I encountered an error while generating the summary."

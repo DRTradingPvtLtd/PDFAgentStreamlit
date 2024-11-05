@@ -21,3 +21,19 @@
 .st-emotion-cache-1v0mbdj {
     margin-top: 1rem;
 }
+
+/* Summary section styles */
+.summary-section {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background-color: #f8f9fa;
+    border-radius: 0.5rem;
+    border-left: 4px solid #FF4B4B;
+}
+
+/* Divider styles */
+hr {
+    margin: 2rem 0;
+    border: none;
+    border-top: 1px solid #e9ecef;
+}

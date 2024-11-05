@@ -17,8 +17,8 @@ with open('assets/style.css') as f:
 def main():
     st.title("📚 PDF Q&A Assistant")
     st.markdown("""
-    Upload a PDF document and ask questions about its content.
-    The AI will help you find answers within the document.
+    Upload a PDF document to get summaries and ask questions about its content.
+    The AI will help you understand and explore the document.
     """)
 
     # Initialize session state
@@ -26,6 +26,8 @@ def main():
         st.session_state.pdf_text = None
     if 'qa_engine' not in st.session_state:
         st.session_state.qa_engine = QAEngine()
+    if 'summary' not in st.session_state:
+        st.session_state.summary = None
 
     # File upload section
     with st.container():
@@ -44,16 +46,37 @@ def main():
                 st.error("Please upload a valid PDF file.")
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # Q&A section
+    # Content Analysis section
     if st.session_state.pdf_text:
         with st.container():
             st.markdown('<div class="qa-section">', unsafe_allow_html=True)
+            
+            # Document Summary Section
+            st.subheader("📝 Document Summary")
+            summary_type = st.selectbox(
+                "Select summary type:",
+                ["concise", "detailed", "bullet_points"],
+                format_func=lambda x: x.replace('_', ' ').title()
+            )
+            
+            if st.button("Generate Summary"):
+                with st.spinner("Generating summary..."):
+                    st.session_state.summary = st.session_state.qa_engine.generate_summary(
+                        st.session_state.pdf_text,
+                        summary_type
+                    )
+            
+            if st.session_state.summary:
+                st.markdown("### Summary:")
+                st.markdown(st.session_state.summary)
+                st.divider()
             
             # Display text preview
             with st.expander("Preview PDF Content"):
                 st.text_area("Extracted Text", st.session_state.pdf_text, height=200)
 
             # Question input
+            st.subheader("❓ Ask Questions")
             user_question = st.text_input("Ask a question about the document:")
             
             if user_question:
