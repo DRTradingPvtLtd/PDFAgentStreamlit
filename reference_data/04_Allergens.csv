@@ -1,0 +1,6 @@
+Material_Code,Contains_Milk,Contains_Soya,Contains_Nuts,Contains_Gluten,Suitable_For_Vegans,Suitable_For_Vegetarians
+MC001,No,Yes,No,No,Yes,Yes
+MC002,Yes,Yes,No,No,No,Yes
+MC003,Yes,Yes,No,No,No,Yes
+MC004,No,Yes,No,No,Yes,Yes
+MC005,No,Yes,No,No,Yes,Yes

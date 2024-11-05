@@ -1,6 +1,7 @@
 import os
 from openai import AzureOpenAI
 import streamlit as st
+from .product_matcher import ProductMatchingEngine
 
 class QAEngine:
     def __init__(self):
@@ -16,6 +17,7 @@ class QAEngine:
             azure_endpoint=azure_endpoint
         )
         self.deployment_name = os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4")
+        self.product_matcher = ProductMatchingEngine()
 
     def get_answer(self, context: str, question: str, user_preferences: dict = None) -> str:
         try:
@@ -28,6 +30,18 @@ class QAEngine:
                 - Dietary restrictions: {user_preferences.get('dietary_restrictions', 'N/A')}
                 - Cocoa percentage preference: {user_preferences.get('cocoa_percentage', 'N/A')}
                 """
+
+            # Extract product requirements from the question
+            requirements = self._extract_product_requirements(question)
+            
+            # If the question is about product recommendations, use the product matcher
+            if self._is_product_query(question):
+                matches = self.product_matcher.find_matching_products(
+                    requirements, user_preferences)
+                
+                if matches:
+                    product_context = self._format_product_matches(matches)
+                    context = f"{context}\n\nRelevant product matches:\n{product_context}"
 
             prompt = f"""
             Context: {context}
@@ -56,6 +70,61 @@ class QAEngine:
         except Exception as e:
             st.error(f"Error generating answer: {str(e)}")
             return "Sorry, I encountered an error while processing your question."
+
+    def _extract_product_requirements(self, question: str) -> dict:
+        """Extract product requirements from the question"""
+        try:
+            prompt = f"""
+            Extract product requirements from the following question:
+            Question: {question}
+            
+            Return the requirements in JSON format with these possible fields:
+            - base_type (e.g., dark, milk, white, ruby)
+            - product_type (e.g., standard, premium, sugar-free)
+            - technical_params (dictionary of technical parameters)
+            - region (if specified)
+            
+            Only include fields that are explicitly mentioned or implied in the question.
+            """
+
+            response = self.client.chat.completions.create(
+                model=self.deployment_name,
+                messages=[{
+                    "role": "user",
+                    "content": prompt
+                }],
+                temperature=0.0,
+                max_tokens=200)
+
+            content = response.choices[0].message.content
+            import json
+            return json.loads(content)
+
+        except Exception as e:
+            st.error(f"Error extracting requirements: {str(e)}")
+            return {}
+
+    def _is_product_query(self, question: str) -> bool:
+        """Determine if the question is asking for product recommendations"""
+        product_keywords = [
+            'recommend', 'suggest', 'find', 'looking for', 'available',
+            'product', 'chocolate', 'material', 'type', 'similar'
+        ]
+        return any(keyword in question.lower() for keyword in product_keywords)
+
+    def _format_product_matches(self, matches: list) -> str:
+        """Format product matches into a readable string"""
+        result = []
+        for match in matches:
+            result.append(f"""
+            Product: {match['description']}
+            Material Code: {match['material_code']}
+            Match Score: {match['match_score']:.2f}
+            Base Type: {match['details']['base_type']}
+            Product Type: {match['details']['product_type']}
+            Region: {match['details']['region']}
+            """)
+        return "\n".join(result)
 
     def generate_summary(self, text: str, summary_type: str = "concise", focus_on_chocolate: bool = False) -> str:
         try:

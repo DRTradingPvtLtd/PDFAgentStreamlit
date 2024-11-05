@@ -1,0 +1,6 @@
+Material_Code,Material_Description,Category,Region,Customer_Dedicated,Proj_Phase,Base_Type,Moulding_Type,Product_Type,Viscosity,pH,Fineness,Shelf_Life,Kosher_Certificate,Country_Claim
+MC001,Dark Chocolate 70%,Premium,EMEA,No,Production,Dark,Solid,Chocolate,1.2,6.8,18,12,Yes,Swiss
+MC002,Milk Chocolate 35%,Standard,EMEA,No,Production,Milk,Solid,Chocolate,1.4,6.7,20,12,Yes,Belgian
+MC003,White Chocolate Ruby,Premium,APAC,No,Production,Ruby,Solid,Chocolate,1.3,6.9,19,9,Yes,Swiss
+MC004,Sugar-Free Dark,Special,NAM,No,Production,Dark,Solid,Sugar-Free,1.5,6.8,18,12,Yes,Belgian
+MC005,Vegan Dark Chocolate,Special,EMEA,No,Production,Dark,Solid,Vegan,1.4,6.7,18,12,Yes,Swiss

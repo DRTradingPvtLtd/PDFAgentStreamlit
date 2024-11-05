@@ -28,9 +28,19 @@ def initialize_session_state():
             'dietary_restrictions': None,
             'cocoa_percentage': None
         }
+    if 'product_requirements' not in st.session_state:
+        st.session_state.product_requirements = {
+            'base_type': None,
+            'product_type': None,
+            'region': None,
+            'technical_params': {}
+        }
 
 def update_preferences(key, value):
     st.session_state.user_preferences[key] = value
+
+def update_requirements(key, value):
+    st.session_state.product_requirements[key] = value
 
 def main():
     st.title("🍫 Chocolate PDF Q&A Assistant")
@@ -98,6 +108,54 @@ def main():
                         st.error("Could not extract text from the PDF.")
             else:
                 st.error("Please upload a valid PDF file.")
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # Product Matching Section
+    with st.container():
+        st.markdown('<div class="product-matching-section">', unsafe_allow_html=True)
+        st.subheader("🔍 Find Matching Products")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            base_type = st.selectbox(
+                "Base Type",
+                ["Dark", "Milk", "White", "Ruby", "Any"],
+                key="base_type",
+                on_change=lambda: update_requirements('base_type', st.session_state.base_type)
+            )
+            
+            product_type = st.selectbox(
+                "Product Type",
+                ["Standard", "Premium", "Sugar-Free", "Vegan", "Any"],
+                key="prod_type",
+                on_change=lambda: update_requirements('product_type', st.session_state.prod_type)
+            )
+            
+        with col2:
+            region = st.selectbox(
+                "Region",
+                ["EMEA", "NAM", "APAC", "Any"],
+                key="region",
+                on_change=lambda: update_requirements('region', st.session_state.region)
+            )
+            
+        if st.button("Find Matching Products"):
+            requirements = {k: v for k, v in st.session_state.product_requirements.items() 
+                          if v not in (None, "Any")}
+            
+            matches = st.session_state.qa_engine.product_matcher.find_matching_products(
+                requirements,
+                st.session_state.user_preferences
+            )
+            
+            if matches:
+                st.markdown("### Matching Products:")
+                for match in matches:
+                    with st.expander(f"{match['description']} (Score: {match['match_score']:.2f})"):
+                        st.json(match['details'])
+            else:
+                st.warning("No matching products found.")
+                
         st.markdown('</div>', unsafe_allow_html=True)
 
     # Content Analysis section
