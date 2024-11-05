@@ -17,6 +17,11 @@ class RequirementExtractorAgent:
         )
         self.deployment_name = os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-4")
 
+    @staticmethod
+    def clean_percentage(value: str) -> float:
+        """Convert a percentage string to float, removing the % symbol"""
+        return float(str(value).replace('%', '').strip())
+
     def extract_requirements(self, text: str) -> Dict[str, Union[str, Dict[str, str]]]:
         """
         Extract detailed product requirements from the input text.
@@ -35,7 +40,7 @@ class RequirementExtractorAgent:
                     "fineness": "target fineness if mentioned",
                     "ph": "target pH if mentioned"
                 }},
-                "min_protein_percentage": "minimum protein content if mentioned",
+                "min_protein_percentage": "minimum protein content if mentioned (include % symbol if mentioned)",
                 "region": "target region if mentioned (EMEA, NAM, APAC)",
                 "special_requirements": "any special requirements like dietary restrictions"
             }}
@@ -43,7 +48,7 @@ class RequirementExtractorAgent:
             Text to analyze:
             {text}
 
-            Ensure all numerical values are provided as numbers without units.
+            For numerical values, include any units mentioned in the text.
             """
 
             response = self.client.chat.completions.create(
@@ -96,6 +101,9 @@ class RequirementExtractorAgent:
             for spec, value in requirements['technical_specs'].items():
                 try:
                     if value and value != "":
+                        # Clean percentage values if present
+                        if isinstance(value, str) and '%' in value:
+                            value = self.clean_percentage(value)
                         valid_specs[spec] = float(str(value).replace(',', '.'))
                 except (ValueError, TypeError):
                     continue
@@ -105,9 +113,14 @@ class RequirementExtractorAgent:
         # Validate protein percentage
         if 'min_protein_percentage' in requirements:
             try:
-                protein = float(str(requirements['min_protein_percentage']).replace(',', '.'))
-                if 0 < protein <= 100:
-                    valid_requirements['min_protein_percentage'] = protein
+                protein_value = requirements['min_protein_percentage']
+                if isinstance(protein_value, str):
+                    protein_value = self.clean_percentage(protein_value)
+                elif isinstance(protein_value, (int, float)):
+                    protein_value = float(protein_value)
+                
+                if 0 < protein_value <= 100:
+                    valid_requirements['min_protein_percentage'] = protein_value
             except (ValueError, TypeError):
                 pass
 

@@ -14,6 +14,11 @@ class Phase1SearchAgent:
             'Ruby': {'Dark': 0.2, 'Ruby': 1.0, 'Milk': 0.5, 'White': 0.4}
         }
 
+    @staticmethod
+    def clean_percentage(value: str) -> float:
+        """Convert a percentage string to float, removing the % symbol"""
+        return float(str(value).replace('%', '').strip())
+
     def search(self, requirements: Dict) -> Tuple[List[Dict], Dict]:
         """
         Perform Phase 1 search with strict criteria
@@ -40,23 +45,34 @@ class Phase1SearchAgent:
         if requirements.get('technical_specs'):
             for spec, value in requirements['technical_specs'].items():
                 if spec in products.columns:
-                    products = products[
-                        (products[spec] >= float(value) * 0.95) &  # Allow 5% tolerance
-                        (products[spec] <= float(value) * 1.05)
-                    ]
+                    try:
+                        target_value = float(value) if not isinstance(value, str) else self.clean_percentage(value)
+                        products = products[
+                            (products[spec] >= target_value * 0.95) &  # Allow 5% tolerance
+                            (products[spec] <= target_value * 1.05)
+                        ]
+                    except (ValueError, TypeError):
+                        continue
             stats['after_technical_specs'] = len(products)
 
         # Protein content
         if requirements.get('min_protein_percentage'):
-            protein_threshold = float(requirements['min_protein_percentage'])
-            products = pd.merge(
-                products,
-                self.nutrition_data[['Material_Code', 'Protein_g']],
-                on='Material_Code',
-                how='left'
-            )
-            products = products[products['Protein_g'] >= protein_threshold]
-            stats['after_protein_filter'] = len(products)
+            try:
+                protein_threshold = (
+                    float(requirements['min_protein_percentage'])
+                    if not isinstance(requirements['min_protein_percentage'], str)
+                    else self.clean_percentage(requirements['min_protein_percentage'])
+                )
+                products = pd.merge(
+                    products,
+                    self.nutrition_data[['Material_Code', 'Protein_g']],
+                    on='Material_Code',
+                    how='left'
+                )
+                products = products[products['Protein_g'] >= protein_threshold]
+                stats['after_protein_filter'] = len(products)
+            except (ValueError, TypeError):
+                pass
 
         # Convert matches to list of dictionaries
         matches = []
@@ -120,10 +136,15 @@ class Phase1SearchAgent:
             tech_scores = []
             for spec, value in requirements['technical_specs'].items():
                 if spec in product:
-                    diff = abs(float(product[spec]) - float(value))
-                    tolerance = float(value) * 0.05  # 5% tolerance
-                    tech_score = max(0, 1 - (diff / tolerance))
-                    tech_scores.append(tech_score)
+                    try:
+                        target_value = float(value) if not isinstance(value, str) else self.clean_percentage(value)
+                        actual_value = float(product[spec])
+                        diff = abs(actual_value - target_value)
+                        tolerance = target_value * 0.05  # 5% tolerance
+                        tech_score = max(0, 1 - (diff / tolerance))
+                        tech_scores.append(tech_score)
+                    except (ValueError, TypeError):
+                        continue
             if tech_scores:
                 scores.append(('technical_specs', sum(tech_scores) / len(tech_scores)))
 
