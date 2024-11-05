@@ -1,6 +1,7 @@
 import os
 from openai import AzureOpenAI
 import streamlit as st
+import json
 from .product_matcher import ProductMatchingEngine
 
 class QAEngine:
@@ -23,18 +24,20 @@ class QAEngine:
         """Extract product requirements from the document text"""
         try:
             prompt = f"""
-            Analyze the following document and extract chocolate product requirements.
-            Return the requirements in JSON format with these fields:
-            - base_type: preferred chocolate base type (e.g., dark, milk, white, ruby)
-            - product_type: type of product needed (e.g., standard, premium, sugar-free)
-            - technical_specs: dictionary of technical specifications mentioned
-            - region: target region if mentioned (EMEA, NAM, APAC)
-            - special_requirements: any special requirements or restrictions
+            Please analyze the following document and extract chocolate product requirements.
+            Return ONLY a valid JSON object with these fields (only include fields that are explicitly mentioned or strongly implied):
+            {{
+                "base_type": "preferred chocolate base type (dark, milk, white, ruby)",
+                "product_type": "type of product needed (standard, premium, sugar-free)",
+                "technical_specs": {{"key": "value"}},
+                "region": "target region if mentioned (EMEA, NAM, APAC)",
+                "special_requirements": "any special requirements or restrictions"
+            }}
 
             Document text:
             {text}
 
-            Only include fields that are explicitly mentioned or strongly implied in the text.
+            Ensure the response is a properly formatted JSON object.
             """
 
             response = self.client.chat.completions.create(
@@ -46,9 +49,22 @@ class QAEngine:
                 temperature=0.0,
                 max_tokens=500)
 
-            content = response.choices[0].message.content
-            import json
-            return json.loads(content)
+            content = response.choices[0].message.content.strip()
+            
+            # Clean up the response if needed
+            if content.startswith('```json'):
+                content = content[7:]
+            if content.endswith('```'):
+                content = content[:-3]
+            content = content.strip()
+            
+            # Validate JSON before parsing
+            try:
+                requirements = json.loads(content)
+                return requirements
+            except json.JSONDecodeError as je:
+                st.error(f"Error parsing JSON response: {str(je)}")
+                return {}
 
         except Exception as e:
             st.error(f"Error extracting requirements: {str(e)}")
@@ -132,37 +148,6 @@ class QAEngine:
         except Exception as e:
             st.error(f"Error generating summary: {str(e)}")
             return "Sorry, I encountered an error while generating the summary."
-
-    def analyze_chocolate_preferences(self, preferences: dict) -> str:
-        try:
-            prompt = f"""
-            Based on the following chocolate preferences:
-            - Preferred chocolate type: {preferences.get('chocolate_type', 'N/A')}
-            - Preferred flavor notes: {preferences.get('flavor_notes', 'N/A')}
-            - Dietary restrictions: {preferences.get('dietary_restrictions', 'N/A')}
-            - Cocoa percentage preference: {preferences.get('cocoa_percentage', 'N/A')}
-
-            Please provide:
-            1. A brief analysis of these preferences
-            2. Suggested chocolate categories that might appeal to this user
-            3. Any special considerations based on dietary restrictions
-            """
-
-            response = self.client.chat.completions.create(
-                model=self.deployment_name,
-                messages=[{
-                    "role": "user",
-                    "content": prompt
-                }],
-                temperature=0.7,
-                max_tokens=500)
-
-            content = response.choices[0].message.content
-            return content if content else "Sorry, I couldn't analyze the preferences."
-
-        except Exception as e:
-            st.error(f"Error analyzing preferences: {str(e)}")
-            return "Sorry, I encountered an error while analyzing preferences."
 
     def generate_product_pitch(self, context: str, requirements: dict, user_preferences: dict = None) -> str:
         try:
